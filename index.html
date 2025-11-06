@@ -24,7 +24,7 @@
   </style>
 </head>
 <body>
-  <div class="card"> 
+  <div class="card">
     <h2>獲獎填報網站（GitHub Pages）</h2>
     <p class="muted">① 寫入《獲獎填報紀錄》 ② 追加《司儀稿》 ③ 依範本產出《學生獎懲建議表（公告）》PDF</p>
 
@@ -80,8 +80,10 @@
       <div>
         <label>幾支</label>
         <select id="awardCount">
-          <option value="1">1</option><option value="2">2</option>
-          <option value="3">3</option><option value="4">4</option>
+          <option value="1">1</option>
+          <option value="2">2</option>
+          <option value="3">3</option>
+          <option value="4">4</option>
           <option value="5">5</option>
         </select>
       </div>
@@ -89,86 +91,93 @@
 
     <p class="help">檔名規則：學生獎懲建議表（公告）_班級-座號-姓名-獲獎原因。</p>
 
-    <button class="btn" id="submitBtn">送出並產出文件</button>
+    <button class="btn" id="submitBtn" type="button">送出並產出文件</button>
 
     <div id="result" style="margin-top:18px"></div>
   </div>
 
   <script>
-    // ⬇⬇⬇ 將此處替換成你的「非網域版」GAS Web App URL（/exec 結尾）
-    // 例： https://script.google.com/macros/s/AKfycb.../exec
-  const GAS_URL = 'https://script.google.com/macros/s/AKfycbxEF3_3cltSO-UYDIAtd8ClgVlYzgY1RoxX6ReyJ2bg6GxgE5d0wIRRgSopM3Z77DsPyg/exec'
+    // 你的 GAS Web App /exec（非網域版）
+    const GAS_URL = 'https://script.google.com/macros/s/AKfycbxEF3_3cltSO-UYDIAtd8ClgVlYzgY1RoxX6ReyJ2bg6GxgE5d0wIRRgSopM3Z77DsPyg/exec';
 
+    document.addEventListener('DOMContentLoaded', () => {
+      const $ = id => document.getElementById(id);
 
-    // 預設今天日期
-    (function(){
-      const iso = new Date().toISOString().slice(0,10);
-      document.getElementById('awardDate').value = iso;
-    })();
-
-    const $ = id => document.getElementById(id);
-
-    $('submitBtn').addEventListener('click', async () => {
-      const payload = {
-        klass: $('klass').value.trim(),
-        seat: $('seat').value.trim(),
-        name: $('name').value.trim(),
-        award: $('award').value.trim(),
-        reason: $('reason').value.trim(),
-        ceremony: $('ceremony').value.trim(),
-        awardDate: $('awardDate').value,
-        awardType: $('awardType').value,
-        awardCount: $('awardCount').value,
-      };
-
-      // 簡易驗證
-      const required = ['klass','seat','name','award','reason','awardDate','awardType','awardCount'];
-      for (const k of required) {
-        if (!String(payload[k] || '').trim()) {
-          return showMsg('請完整填寫必填欄位', true);
-        }
+      // 預設今天日期
+      const awardDateEl = $('awardDate');
+      if (awardDateEl && !awardDateEl.value) {
+        awardDateEl.value = new Date().toISOString().slice(0,10);
       }
 
-      toggleBtn(true);
-      try {
-        // 使用 x-www-form-urlencoded 送出，避免 CORS 預檢（OPTIONS）
-        const body = new URLSearchParams(payload).toString();
-        const res  = await fetch(GAS_URL, { method:'POST', body });
+      const btn = $('submitBtn');
+      const resultBox = $('result');
 
-        // 嘗試解析 JSON 回應
-        const ct = res.headers.get('content-type') || '';
-        const data = ct.includes('application/json') ? await res.json() : null;
+      if (!btn) {
+        if (resultBox) resultBox.innerHTML = '<p class="err">找不到送出按鈕 submitBtn。</p>';
+        return;
+      }
 
-        if (!res.ok) throw new Error('伺服器回傳狀態 ' + res.status);
-        if (!data || !data.ok) throw new Error((data && data.message) ? data.message : '未知錯誤');
+      btn.addEventListener('click', async () => {
+        const payload = {
+          klass: $('klass')?.value?.trim() || '',
+          seat: $('seat')?.value?.trim() || '',
+          name: $('name')?.value?.trim() || '',
+          award: $('award')?.value?.trim() || '',
+          reason: $('reason')?.value?.trim() || '',
+          ceremony: $('ceremony')?.value?.trim() || '',
+          awardDate: $('awardDate')?.value || '',
+          awardType: $('awardType')?.value || '',
+          awardCount: $('awardCount')?.value || '1',
+        };
 
-        showLinks(data);
-      } catch (err) {
-        showMsg('發生錯誤：' + (err.message || err), true);
-      } finally {
-        toggleBtn(false);
+        // 必填驗證
+        const required = ['klass','seat','name','award','reason','awardDate','awardType','awardCount'];
+        for (const k of required) {
+          if (!String(payload[k] || '').trim()) {
+            return showMsg('請完整填寫必填欄位', true);
+          }
+        }
+
+        toggleBtn(true);
+        try {
+          // 用 x-www-form-urlencoded 送出，避免預檢
+          const body = new URLSearchParams(payload).toString();
+          const res  = await fetch(GAS_URL, { method: 'POST', body });
+
+          // 解析 JSON
+          const ct = res.headers.get('content-type') || '';
+          const data = ct.includes('application/json') ? await res.json() : null;
+
+          if (!res.ok) throw new Error('伺服器狀態 ' + res.status);
+          if (!data || !data.ok) throw new Error((data && data.message) ? data.message : '未知錯誤');
+
+          showLinks(data);
+        } catch (err) {
+          showMsg('發生錯誤：' + (err?.message || err), true);
+        } finally {
+          toggleBtn(false);
+        }
+      });
+
+      function showLinks(d){
+        resultBox.innerHTML = `
+          <div class="links ok">
+            <p><strong>完成！</strong> 已寫入並產出文件。</p>
+            <p>• 紀錄表：<a href="${d.sheetUrl}" target="_blank" rel="noopener">開啟試算表</a></p>
+            <p>• 司儀稿：<a href="${d.mcDocUrl}" target="_blank" rel="noopener">Google 文件</a>｜<a href="${d.mcPdfUrl}" target="_blank" rel="noopener">PDF</a></p>
+            <p>• 公告表：<a href="${d.noticeDocUrl}" target="_blank" rel="noopener">Google 文件</a>｜<a href="${d.noticePdfUrl}" target="_blank" rel="noopener">PDF</a></p>
+          </div>`;
+      }
+
+      function showMsg(msg, isErr=false){
+        resultBox.innerHTML = `<p class="${isErr?'err':'ok'}">${msg}</p>`;
+      }
+
+      function toggleBtn(disabled){
+        btn.disabled = disabled;
+        btn.textContent = disabled ? '處理中…' : '送出並產出文件';
       }
     });
-
-    function showLinks(d){
-      $('result').innerHTML = `
-        <div class="links ok">
-          <p><strong>完成！</strong> 已寫入並產出文件。</p>
-          <p>• 紀錄表：<a href="${d.sheetUrl}" target="_blank" rel="noopener">開啟試算表</a></p>
-          <p>• 司儀稿：<a href="${d.mcDocUrl}" target="_blank" rel="noopener">Google 文件</a>｜<a href="${d.mcPdfUrl}" target="_blank" rel="noopener">PDF</a></p>
-          <p>• 公告表：<a href="${d.noticeDocUrl}" target="_blank" rel="noopener">Google 文件</a>｜<a href="${d.noticePdfUrl}" target="_blank" rel="noopener">PDF</a></p>
-        </div>`;
-    }
-
-    function showMsg(msg, isErr=false){
-      $('result').innerHTML = `<p class="${isErr?'err':'ok'}">${msg}</p>`;
-    }
-
-    function toggleBtn(disabled){
-      const btn = $('submitBtn');
-      btn.disabled = disabled;
-      btn.textContent = disabled ? '處理中…' : '送出並產出文件';
-    }
   </script>
 </body>
 </html>
