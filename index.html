@@ -34,7 +34,7 @@
             </h1>
             <div id="gas-status-message" class="text-sm text-red-600 font-semibold p-2 bg-red-100 rounded-lg flex items-center">
                 <i data-lucide="alert-triangle" class="w-5 h-5 mr-2"></i>
-                連線失敗，請檢查 `GAS_WEB_APP_URL` 與 Apps Script 部署狀態。
+                連線失敗，請檢查 `GAS_WEB_APP_URL` 與 Apps Script 部署狀態/權限。
             </div>
         </header>
 
@@ -158,7 +158,7 @@
 
 <script>
     // 🚨🚨🚨 請將此處替換為您部署的 Google Apps Script Web App 網址 🚨🚨🚨
-    const GAS_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbxEc3DbkiPdKEVm3Y-DcRt7CvqqKpelqDnylac60FG5xshSD1PJZGMjW616JKv4Vfk2UQ/exec'; 
+    const GAS_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbxRpLLGKkZNjotFN7xFADBm9vy9y6hm1b7_NnviFcAmKYxdY6SDDp08nVQVX4_lDimxYQ/exec'; 
 
     let awardees = []; // 儲存從 Google Sheet 讀取到的名單
 
@@ -263,13 +263,15 @@
             console.error("Error fetching awardees:", error);
             // 檢查是否為 CORS 錯誤 (最常見的 GAS 權限問題)
             let errorMessage = error.message;
-            if (errorMessage.includes('Failed to fetch') || errorMessage.includes('HTTP error! status: 401') || errorMessage.includes('GAS 後端回傳錯誤')) {
+            if (errorMessage.includes('Failed to fetch') || errorMessage.includes('HTTP error! status: 401')) {
                  errorMessage = '請確認 Apps Script 部署權限是否設為「任何人可存取」';
+            } else if (errorMessage.includes('GAS 後端回傳錯誤')) {
+                 errorMessage = '請檢查 Google Sheets 中的工作表名稱是否為「獲獎名單」';
             }
             
             loadingMessage.textContent = `❌ 載入名單失敗: ${errorMessage}`;
             gasStatusMessage.className = 'text-sm text-red-600 font-semibold p-2 bg-red-100 rounded-lg flex items-center';
-            gasStatusMessage.innerHTML = '<i data-lucide="alert-triangle" class="w-5 h-5 mr-2"></i> 連線失敗，請檢查 `GAS_WEB_APP_URL` 與 Apps Script 部署狀態/權限。';
+            gasStatusMessage.innerHTML = '<i data-lucide="alert-triangle" class="w-5 h-5 mr-2"></i> 連線失敗，請檢查 Apps Script 部署狀態/權限。';
             awardees = [];
         } finally {
             renderAwardList();
@@ -320,7 +322,7 @@
         e.preventDefault();
         
         if (GAS_WEB_APP_URL.includes('YOUR_DEPLOYED_GAS_WEB_APP_URL_HERE')) {
-            alert('請先部署 GAS Web App 並更新 GAS_WEB_APP_URL！');
+            showTemporaryMessage('請先部署 GAS Web App 並更新 GAS_WEB_APP_URL！', 'error');
             return;
         }
         
