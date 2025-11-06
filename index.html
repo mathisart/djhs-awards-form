@@ -212,6 +212,7 @@
         } else if (reward.includes('記功')) {
             // 記功 (Minor Merit)
             return '第五條第十二款';
+            // 由於目前只有嘉獎和記功的法條，其他獎懲類型可在此擴充
         } else {
             return '無'; // '無敘獎(僅表揚)'
         }
@@ -288,6 +289,9 @@
         document.getElementById('auth-status').textContent = 'Firebase 配置遺失，請檢查設定。';
         document.getElementById('loading-message').textContent = 'Firebase 未初始化。';
         isFirebaseReady = false;
+        
+        // 為了讓按鈕狀態符合 Firebase 未初始化，在 else 區塊內也執行一次 renderAwardList
+        renderAwardList();
     }
     // --- 結束 Firebase 必備邏輯 ---
 
@@ -309,11 +313,24 @@
     // 格式化發生日期為 月/日
     const formatEventDate = (dateString) => {
         if (!dateString) return '';
-        const date = new Date(dateString);
-        // 使用 getMonth() + 1 和 getDate()
-        const month = (date.getMonth() + 1).toString().padStart(2, '0');
-        const day = date.getDate().toString().padStart(2, '0');
-        return `${month} / ${day}`;
+        // 處理 yyyy-mm-dd 格式
+        const parts = dateString.split('-');
+        if (parts.length === 3) {
+            // 月份不需要 +1
+            const month = parts[1]; 
+            const day = parts[2];
+            return `${month} / ${day}`;
+        }
+        
+        // 作為 fallback，但通常輸入欄位會確保格式
+        try {
+            const date = new Date(dateString);
+            const month = (date.getMonth() + 1).toString().padStart(2, '0');
+            const day = date.getDate().toString().padStart(2, '0');
+            return `${month} / ${day}`;
+        } catch (e) {
+            return '';
+        }
     };
     
     // 渲染名單列表
@@ -321,12 +338,15 @@
         awardListContainer.innerHTML = '';
         awardCountSpan.textContent = awardees.length;
 
+        // 按鈕啟用條件: 1. 有資料 AND 2. Firebase 已就緒
         generateScriptBtn.disabled = awardees.length === 0 || !isFirebaseReady;
         generateNoticeBtn.disabled = awardees.length === 0 || !isFirebaseReady;
-
-        if (awardees.length === 0) {
+        
+        // 處理 Firebase 未就緒時的按鈕狀態和提示
+        if (!isFirebaseReady) {
+            document.getElementById('loading-message').textContent = 'Firebase 未初始化，無法載入名單或啟用按鈕。';
+        } else if (awardees.length === 0) {
             awardListContainer.innerHTML = '<p class="text-center text-gray-500 p-4 bg-gray-50 rounded-lg">尚無獲獎名單，請使用上方表單新增。</p>';
-            return;
         }
 
         awardees.forEach(item => {
@@ -345,7 +365,8 @@
                         ${item.reason}
                     </p>
                 </div>
-                <button data-id="${item.id}" class="delete-btn text-red-500 hover:text-red-700 ml-4 p-1 rounded-full hover:bg-red-100 transition">
+                <!-- 刪除按鈕只有在 Firebase Ready 時才啟用 -->
+                <button data-id="${item.id}" class="delete-btn text-red-500 hover:text-red-700 ml-4 p-1 rounded-full hover:bg-red-100 transition ${isFirebaseReady ? '' : 'hidden'}" ${isFirebaseReady ? '' : 'disabled'}>
                     <i data-lucide="trash-2" class="w-5 h-5"></i>
                 </button>
             `;
@@ -399,7 +420,6 @@
             }
         } catch (error) {
             console.error("Error adding document: ", error);
-            // 替換 alert 為自定義 Modal 訊息或 console.error，但此處為功能展示，暫時保留簡化訊息
             console.error('新增名單失敗，請檢查連線或設定。'); 
         }
     });
@@ -407,7 +427,7 @@
     // --- 刪除功能 ---
     awardListContainer.addEventListener('click', async (e) => {
         const deleteBtn = e.target.closest('.delete-btn');
-        if (deleteBtn) {
+        if (deleteBtn && isFirebaseReady) { // 確保只有在 Firebase Ready 時才處理刪除
             const docId = deleteBtn.getAttribute('data-id');
             // 替換 confirm() 警告窗，實際應用中應使用自定義 Modal
             if (window.confirm(`確定要刪除這筆獲獎資料嗎？`)) { 
@@ -431,7 +451,6 @@
                     }
                 } catch (error) {
                     console.error("Error removing document: ", error);
-                    // 替換 alert 訊息
                     console.error('刪除名單失敗。');
                 }
             }
@@ -473,7 +492,7 @@
         const day = currentDate.getDate().toString().padStart(2, '0');
         const dateHeader = `中華民國 ${year} 年 ${month} 月 ${day} 日`;
 
-        let notice = `<div style="padding: 20px; font-family: 'Noto Sans TC', sans-serif; max-width: 100%; overflow-x: auto;">
+        let notice = `<div id="commendation-notice-content" style="padding: 20px; font-family: 'Noto Sans TC', sans-serif; max-width: 100%; overflow-x: auto;">
             <p style='color: #ef4444; margin-bottom: 20px;'>請手動選取內容複製，貼至 Google 文件以保留格式。</p>
             <h2 style="font-size: 1.5em; font-weight: bold; text-align: center; margin-bottom: 10px;">臺中市立大甲國民中學學生獎懲建議表(公告)</h2>
             <div style="text-align: right; margin-bottom: 15px; font-size: 0.9em;">${dateHeader} (請修改為公告日期)</div>
@@ -483,11 +502,11 @@
                     <tr style="background-color: #f0f0f0; font-weight: bold; height: 50px;">
                         <td style="${tableCellStyle} width: 7%;">班級</td>
                         <td style="${tableCellStyle} width: 7%;">座號</td>
-                        <td style="${tableCellStyle} width: 10%;">姓名</td>
+                        <td style="${tableCellStyle} width: 10%;">姓 名</td>
                         <!-- 依據範本，將日期拆分為 月/日 兩欄 -->
                         <td style="${tableCellStyle} width: 5%;">發生日期<br>月</td>
                         <td style="${tableCellStyle} width: 5%;">發生日期<br>日</td>
-                        <td style="${tableCellStyle} width: 35%;">事由</td>
+                        <td style="${tableCellStyle} width: 35%;">事 由</td>
                         <!-- 依據範本，簡化條款欄位名稱 -->
                         <td style="${tableCellStyle} width: 15%;">依據獎懲法<br>條、款</td>
                         <td style="${tableCellStyle} width: 12%;">獎懲種類</td>
@@ -502,6 +521,7 @@
         } else {
             awardees.forEach(item => {
                 const formattedDate = formatEventDate(item.eventDate);
+                // 處理 yyyy-mm-dd 格式，直接取中間和最後的數字作為月/日
                 const [itemMonth, itemDay] = formattedDate.split(' / ');
                 // 確保 basis 存在，若資料庫中未存(舊資料)，則重新計算
                 const basisText = item.basis || getBasis(item.reward);
@@ -570,6 +590,17 @@
         const printContent = document.createElement('div');
         printContent.innerHTML = element.innerHTML;
         
+        // 如果是敘獎公告，目標 ID 是 commendation-notice-content
+        let targetElement = printContent.querySelector('#commendation-notice-content');
+        if (!targetElement) {
+            targetElement = printContent; // 否則使用整個內容區
+        }
+        
+        // 移除複製提示，確保 PDF 乾淨
+        const prompt = targetElement.querySelector('p[style*="color: #ef4444"]');
+        if (prompt) prompt.remove();
+
+
         // 配置選項
         const opt = {
             margin: 10,
@@ -578,7 +609,6 @@
             html2canvas: { 
                 scale: 2, 
                 logging: false,
-                // 嘗試啟用字體渲染，幫助中文字體處理
                 allowTaint: true,
                 useCORS: false
             },
@@ -586,13 +616,12 @@
         };
 
         // 使用 html2pdf 函式庫進行轉換和下載
-        // 注意：中文字體渲染效果可能因瀏覽器和函式庫限制而異。
-        html2pdf().set(opt).from(printContent).save();
+        html2pdf().set(opt).from(targetElement).save();
     };
 
     // 複製文字功能 (此功能仍維持複製純文字)
-    const copyToClipboard = (text) => {
-        // 為了確保複製 rich text，我們將複製的內容改為 documentContent.innerText (純文字)
+    const copyToClipboard = () => {
+        // 複製 documentContent 區塊的純文字
         const pureText = documentContent.innerText || documentContent.textContent;
         // 使用 document.execCommand('copy') 作為 iframe 環境中的兼容寫法
         const textarea = document.createElement('textarea');
@@ -631,10 +660,7 @@
     
     closeModalBtn.addEventListener('click', hideModal);
     
-    copyDocumentBtn.addEventListener('click', () => {
-        // 複製純文字內容
-        copyToClipboard(documentContent.innerText);
-    });
+    copyDocumentBtn.addEventListener('click', copyToClipboard);
 
     // 新增 PDF 生成按鈕的事件監聽
     generatePdfBtn.addEventListener('click', () => {
