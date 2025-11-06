@@ -34,7 +34,7 @@
             </h1>
             <div id="gas-status-message" class="text-sm text-red-600 font-semibold p-2 bg-red-100 rounded-lg flex items-center">
                 <i data-lucide="alert-triangle" class="w-5 h-5 mr-2"></i>
-                請在程式碼中更新 `GAS_WEB_APP_URL` 變數為您部署的 Apps Script 網址，否則無法儲存/載入資料。
+                連線失敗，請檢查 `GAS_WEB_APP_URL` 與 Apps Script 部署狀態。
             </div>
         </header>
 
@@ -187,6 +187,11 @@
      * @returns {string} 法條依據
      */
     const getBasis = (reward) => {
+        // 🚨 前端增加空值檢查
+        if (typeof reward !== 'string' || !reward) {
+            return '無';
+        }
+
         if (reward.includes('嘉獎')) {
             return '第四條第十六款';
         } else if (reward.includes('記功')) {
@@ -235,6 +240,12 @@
             }
 
             const data = await response.json();
+            
+            // 檢查 GAS 後端是否回傳錯誤訊息
+            if (data.status === 'error') {
+                 throw new Error(data.message || 'GAS 後端回傳錯誤。');
+            }
+            
             // 假設 data.data 是一個包含名單物件的陣列
             awardees = data.data || [];
             
@@ -250,9 +261,15 @@
 
         } catch (error) {
             console.error("Error fetching awardees:", error);
-            loadingMessage.textContent = `❌ 載入名單失敗: ${error.message}。請檢查 GAS 網址是否正確。`;
+            // 檢查是否為 CORS 錯誤 (最常見的 GAS 權限問題)
+            let errorMessage = error.message;
+            if (errorMessage.includes('Failed to fetch') || errorMessage.includes('HTTP error! status: 401') || errorMessage.includes('GAS 後端回傳錯誤')) {
+                 errorMessage = '請確認 Apps Script 部署權限是否設為「任何人可存取」';
+            }
+            
+            loadingMessage.textContent = `❌ 載入名單失敗: ${errorMessage}`;
             gasStatusMessage.className = 'text-sm text-red-600 font-semibold p-2 bg-red-100 rounded-lg flex items-center';
-            gasStatusMessage.innerHTML = '<i data-lucide="alert-triangle" class="w-5 h-5 mr-2"></i> 連線失敗，請檢查 `GAS_WEB_APP_URL` 與 Apps Script 部署狀態。';
+            gasStatusMessage.innerHTML = '<i data-lucide="alert-triangle" class="w-5 h-5 mr-2"></i> 連線失敗，請檢查 `GAS_WEB_APP_URL` 與 Apps Script 部署狀態/權限。';
             awardees = [];
         } finally {
             renderAwardList();
@@ -275,7 +292,8 @@
         }
 
         awardees.forEach(item => {
-            const basisText = item.basis || getBasis(item.reward);
+            // 確保 item.reward 存在，否則傳入空字串
+            const basisText = getBasis(item.reward || '');
             const formattedDate = formatEventDate(item.eventDate);
 
             const div = document.createElement('div');
@@ -284,7 +302,7 @@
                 <div>
                     <p class="text-base font-semibold text-blue-700">${item.class} ${item.seatNo} 號 ${item.name}</p>
                     <p class="text-xs text-gray-600 mt-1">
-                        <span class="inline-block bg-blue-100 text-blue-800 text-xs font-medium px-2.5 py-0.5 rounded-full">${item.reward}</span>
+                        <span class="inline-block bg-blue-100 text-blue-800 text-xs font-medium px-2.5 py-0.5 rounded-full">${item.reward || '無獎懲'}</span>
                         <span class="inline-block bg-gray-200 text-gray-600 text-xs font-medium px-2.5 py-0.5 rounded-full">${basisText}</span>
                         <span class="inline-block bg-gray-200 text-gray-600 text-xs font-medium px-2.5 py-0.5 rounded-full">${formattedDate}</span>
                         ${item.reason}
@@ -335,7 +353,8 @@
             const result = await response.json();
 
             if (response.ok && result.status === 'success') {
-                alert('名單已成功儲存到 Google Sheets！');
+                // 替換成自定義 Modal 提示 (避免 alert)
+                showTemporaryMessage('名單已成功儲存到 Google Sheets！', 'success');
                 form.reset();
                 // 重新讀取名單以更新列表
                 await fetchAwardees(); 
@@ -345,7 +364,7 @@
 
         } catch (error) {
             console.error("Error submitting data: ", error);
-            alert(`新增名單失敗: ${error.message}`);
+            showTemporaryMessage(`新增名單失敗: ${error.message}`, 'error');
         } finally {
             submitBtn.disabled = false;
             submitBtn.innerHTML = '<i data-lucide="plus-circle" class="w-5 h-5 mr-2"></i>加入名單 (儲存至 Google Sheet)';
@@ -353,6 +372,19 @@
         }
     });
     
+    // 臨時訊息顯示 (取代 alert)
+    const showTemporaryMessage = (message, type) => {
+        const tempDiv = document.createElement('div');
+        tempDiv.className = `fixed top-4 right-4 p-4 rounded-lg shadow-xl text-white font-bold transition-opacity duration-300 z-50 ${type === 'success' ? 'bg-green-600' : 'bg-red-600'}`;
+        tempDiv.textContent = message;
+        document.body.appendChild(tempDiv);
+        setTimeout(() => {
+            tempDiv.style.opacity = '0';
+            setTimeout(() => tempDiv.remove(), 300);
+        }, 3000);
+    };
+
+
     // --- 文件自動生成邏輯 (核心) ---
     
     // 司儀稿生成 (輸出 HTML 格式)
@@ -414,7 +446,8 @@
             awardees.forEach(item => {
                 const formattedDate = formatEventDate(item.eventDate);
                 const [itemMonth, itemDay] = formattedDate ? formattedDate.split(' / ') : ['', ''];
-                const basisText = item.basis || getBasis(item.reward);
+                // 確保 item.reward 存在，否則傳入空字串
+                const basisText = getBasis(item.reward || '');
 
                 notice += `<tr style="height: 40px;">
                     <td style="${tableCellStyle}">${item.class}</td>
