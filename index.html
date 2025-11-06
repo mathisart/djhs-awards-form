@@ -3,20 +3,24 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>獲獎填報網站（GitHub Pages）</title>
+  <title>獲獎填報網站（DJHS）</title>
   <style>
     :root { --border:#e5e7eb; --muted:#6b7280; }
-    body { font-family: system-ui, -apple-system, "Microsoft JhengHei", sans-serif; margin: 24px; }
-    .card { max-width: 860px; margin: 0 auto; padding: 20px; border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 2px 6px rgba(0,0,0,.06); }
+    * { box-sizing: border-box; }
+    body { font-family: system-ui, -apple-system, "Microsoft JhengHei", sans-serif; margin: 24px; background:#fafafa; }
+    .card { max-width: 920px; margin: 0 auto; padding: 20px; background:#fff; border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 2px 6px rgba(0,0,0,.06); }
+    h2 { margin: 4px 0 12px; }
+    .muted { color: var(--muted); font-size: 14px; margin: 0 0 12px; }
     .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    @media (max-width: 720px){ .row{ grid-template-columns: 1fr; } }
     label { display: block; margin: 8px 0 6px; font-weight: 600; }
-    input, textarea, select { width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 16px; }
+    input, textarea, select { width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 16px; background:#fff; }
     textarea { min-height: 96px; }
-    .btn { margin-top: 10px; width: 100%; padding: 12px; font-size: 16px; border: none; border-radius: 10px; background:#0f172a; color:#fff; cursor:pointer; }
-    .muted { color: var(--muted); font-size: 14px; }
-    .links a { display: inline-block; margin-right: 8px; margin-bottom: 6px; }
+    .btn { margin-top: 14px; width: 100%; padding: 12px; font-size: 16px; border: none; border-radius: 10px; background:#0f172a; color:#fff; cursor:pointer; }
+    .links a { display:inline-block; margin-right:8px; margin-bottom:6px; }
     .ok { color:#065f46; }
     .err { color:#b91c1c; }
+    .help { font-size: 13px; color:#6b7280; margin-top:6px; }
   </style>
 </head>
 <body>
@@ -83,7 +87,7 @@
       </div>
     </div>
 
-    <p class="muted">檔名規則：學生獎懲建議表（公告）_班級-座號-姓名-獲獎原因。</p>
+    <p class="help">檔名規則：學生獎懲建議表（公告）_班級-座號-姓名-獲獎原因。</p>
 
     <button class="btn" id="submitBtn">送出並產出文件</button>
 
@@ -91,10 +95,17 @@
   </div>
 
   <script>
-    // ── 把這個換成你的 GAS Web App URL（/exec）
-    const GAS_URL = 'https://script.google.com/a/macros/st.tc.edu.tw/s/AKfycbwJzfScCjzETPZOdBVFwXzUT0C1bQFhe780piXg6OWhBarH9dos9763di-WQm_G0UAjmg/exec';
+    // ⬇⬇⬇ 將此處替換成你的「非網域版」GAS Web App URL（/exec 結尾）
+    // 例： https://script.google.com/macros/s/AKfycb.../exec
+  const GAS_URL = 'https://script.google.com/macros/s/AKfycb.../exec';
 
-    (function(){ const iso = new Date().toISOString().slice(0,10); document.getElementById('awardDate').value = iso; })();
+
+    // 預設今天日期
+    (function(){
+      const iso = new Date().toISOString().slice(0,10);
+      document.getElementById('awardDate').value = iso;
+    })();
+
     const $ = id => document.getElementById(id);
 
     $('submitBtn').addEventListener('click', async () => {
@@ -109,17 +120,28 @@
         awardType: $('awardType').value,
         awardCount: $('awardCount').value,
       };
+
+      // 簡易驗證
       const required = ['klass','seat','name','award','reason','awardDate','awardType','awardCount'];
-      for (const k of required) if (!String(payload[k]||'').trim()) return showMsg('請完整填寫必填欄位', true);
+      for (const k of required) {
+        if (!String(payload[k] || '').trim()) {
+          return showMsg('請完整填寫必填欄位', true);
+        }
+      }
 
       toggleBtn(true);
       try {
-        // 使用 x-www-form-urlencoded，避免 CORS 預檢（OPTIONS）
+        // 使用 x-www-form-urlencoded 送出，避免 CORS 預檢（OPTIONS）
         const body = new URLSearchParams(payload).toString();
         const res  = await fetch(GAS_URL, { method:'POST', body });
-        const ct   = res.headers.get('content-type') || '';
-        const data = ct.includes('application/json') ? await res.json() : {};
+
+        // 嘗試解析 JSON 回應
+        const ct = res.headers.get('content-type') || '';
+        const data = ct.includes('application/json') ? await res.json() : null;
+
+        if (!res.ok) throw new Error('伺服器回傳狀態 ' + res.status);
         if (!data || !data.ok) throw new Error((data && data.message) ? data.message : '未知錯誤');
+
         showLinks(data);
       } catch (err) {
         showMsg('發生錯誤：' + (err.message || err), true);
@@ -137,8 +159,16 @@
           <p>• 公告表：<a href="${d.noticeDocUrl}" target="_blank" rel="noopener">Google 文件</a>｜<a href="${d.noticePdfUrl}" target="_blank" rel="noopener">PDF</a></p>
         </div>`;
     }
-    function showMsg(msg, isErr=false){ $('result').innerHTML = `<p class="${isErr?'err':'ok'}">${msg}</p>`; }
-    function toggleBtn(disabled){ const btn=$('submitBtn'); btn.disabled=disabled; btn.textContent = disabled?'處理中…':'送出並產出文件'; }
+
+    function showMsg(msg, isErr=false){
+      $('result').innerHTML = `<p class="${isErr?'err':'ok'}">${msg}</p>`;
+    }
+
+    function toggleBtn(disabled){
+      const btn = $('submitBtn');
+      btn.disabled = disabled;
+      btn.textContent = disabled ? '處理中…' : '送出並產出文件';
+    }
   </script>
 </body>
 </html>
