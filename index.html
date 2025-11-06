@@ -104,30 +104,24 @@
       const $ = id => document.getElementById(id);
 
       // 預設今天日期
-      const awardDateEl = $('awardDate');
-      if (awardDateEl && !awardDateEl.value) {
-        awardDateEl.value = new Date().toISOString().slice(0,10);
+      if (!$('awardDate').value) {
+        $('awardDate').value = new Date().toISOString().slice(0,10);
       }
 
       const btn = $('submitBtn');
       const resultBox = $('result');
 
-      if (!btn) {
-        if (resultBox) resultBox.innerHTML = '<p class="err">找不到送出按鈕 submitBtn。</p>';
-        return;
-      }
-
       btn.addEventListener('click', async () => {
         const payload = {
-          klass: $('klass')?.value?.trim() || '',
-          seat: $('seat')?.value?.trim() || '',
-          name: $('name')?.value?.trim() || '',
-          award: $('award')?.value?.trim() || '',
-          reason: $('reason')?.value?.trim() || '',
-          ceremony: $('ceremony')?.value?.trim() || '',
-          awardDate: $('awardDate')?.value || '',
-          awardType: $('awardType')?.value || '',
-          awardCount: $('awardCount')?.value || '1',
+          klass: $('klass').value.trim(),
+          seat: $('seat').value.trim(),
+          name: $('name').value.trim(),
+          award: $('award').value.trim(),
+          reason: $('reason').value.trim(),
+          ceremony: $('ceremony').value.trim(),
+          awardDate: $('awardDate').value,
+          awardType: $('awardType').value,
+          awardCount: $('awardCount').value
         };
 
         // 必填驗證
@@ -140,11 +134,14 @@
 
         toggleBtn(true);
         try {
-          // 用 x-www-form-urlencoded 送出，避免預檢
+          // 使用 x-www-form-urlencoded，GAS 用 e.parameter 解析，且可避免多數預檢
           const body = new URLSearchParams(payload).toString();
-          const res  = await fetch(GAS_URL, { method: 'POST', body });
+          const res  = await fetch(GAS_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+            body
+          });
 
-          // 解析 JSON
           const ct = res.headers.get('content-type') || '';
           const data = ct.includes('application/json') ? await res.json() : null;
 
