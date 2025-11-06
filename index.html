@@ -26,7 +26,7 @@
 <body>
   <div class="card">
     <h2>獲獎填報網站（GitHub Pages）</h2>
-    <p class="muted">① 寫入《獲獎填報紀錄》 ② 追加《司儀稿》 ③ 依範本產出《學生獎懲建議表（公告）》PDF</p>
+    <p class="muted">① 寫入《獲獎填報紀錄》 ② 追加《司儀稿》（口語式、不含典禮名稱）③ 依範本產出《學生獎懲建議表（公告）》PDF</p>
 
     <div class="row">
       <div>
@@ -52,20 +52,12 @@
 
     <div>
       <label>獎項名稱</label>
-      <input id="award" placeholder="例如：114學年度英語朗讀比賽 佳作" />
+      <input id="award" placeholder="例如：第一次段考" />
     </div>
 
     <div>
       <label>得獎理由（事蹟）</label>
-      <textarea id="reason" placeholder="簡述評審重點與表現亮點"></textarea>
-    </div>
-
-    <div class="row">
-      <div>
-        <label>典禮名稱（選填）</label>
-        <input id="ceremony" placeholder="例如：校務會議頒獎、週會表揚" />
-      </div>
-      <div></div>
+      <textarea id="reason" placeholder="例如：第一名"></textarea>
     </div>
 
     <div class="row">
@@ -97,8 +89,8 @@
   </div>
 
   <script>
-    // 你的 GAS Web App /exec（非網域版）
-    const GAS_URL = 'https://script.google.com/macros/s/AKfycbxEF3_3cltSO-UYDIAtd8ClgVlYzgY1RoxX6ReyJ2bg6GxgE5d0wIRRgSopM3Z77DsPyg/exec';
+    // 你的「新」GAS Web App /exec（非網域版）
+    const GAS_URL = 'https://script.google.com/macros/s/AKfycbw1l_0qGXGY7waOREYCdWZ0PYvQ96b-Qz-ZF_hYRB5-4NsWalEeKxSPHf9agV3uxbxsfg/exec';
 
     document.addEventListener('DOMContentLoaded', () => {
       const $ = id => document.getElementById(id);
@@ -108,17 +100,13 @@
         $('awardDate').value = new Date().toISOString().slice(0,10);
       }
 
-      const btn = $('submitBtn');
-      const resultBox = $('result');
-
-      btn.addEventListener('click', async () => {
+      $('submitBtn').addEventListener('click', async () => {
         const payload = {
           klass: $('klass').value.trim(),
           seat: $('seat').value.trim(),
           name: $('name').value.trim(),
           award: $('award').value.trim(),
           reason: $('reason').value.trim(),
-          ceremony: $('ceremony').value.trim(),
           awardDate: $('awardDate').value,
           awardType: $('awardType').value,
           awardCount: $('awardCount').value
@@ -134,7 +122,7 @@
 
         toggleBtn(true);
         try {
-          // 使用 x-www-form-urlencoded，GAS 用 e.parameter 解析，且可避免多數預檢
+          // x-www-form-urlencoded → GAS 以 e.parameter 解析
           const body = new URLSearchParams(payload).toString();
           const res  = await fetch(GAS_URL, {
             method: 'POST',
@@ -157,7 +145,7 @@
       });
 
       function showLinks(d){
-        resultBox.innerHTML = `
+        $('result').innerHTML = `
           <div class="links ok">
             <p><strong>完成！</strong> 已寫入並產出文件。</p>
             <p>• 紀錄表：<a href="${d.sheetUrl}" target="_blank" rel="noopener">開啟試算表</a></p>
@@ -167,10 +155,11 @@
       }
 
       function showMsg(msg, isErr=false){
-        resultBox.innerHTML = `<p class="${isErr?'err':'ok'}">${msg}</p>`;
+        $('result').innerHTML = `<p class="${isErr?'err':'ok'}">${msg}</p>`;
       }
 
       function toggleBtn(disabled){
+        const btn = document.getElementById('submitBtn');
         btn.disabled = disabled;
         btn.textContent = disabled ? '處理中…' : '送出並產出文件';
       }
