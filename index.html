@@ -188,6 +188,7 @@
     let auth;
     let userId;
     let awardees = [];
+    let isFirebaseReady = false; // 新增狀態旗標
     
     // --- Firestore 必備變數與初始化邏輯 ---
     const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
@@ -235,21 +236,28 @@
                         userId = user.uid;
                         document.getElementById('user-info').innerHTML = 
                             `<i data-lucide="user" class="w-4 h-4 inline-block mr-1"></i> 用戶 ID (用於共享/追蹤): <span class="font-mono text-gray-700">${userId}</span>`;
+                        isFirebaseReady = true; // Firebase 服務已就緒
+                        document.getElementById('auth-status').textContent = ''; // 清除錯誤訊息
                         lucide.createIcons(); // 重新渲染 Lucide 圖示
                         initializeListeners();
                     } else {
+                        isFirebaseReady = false;
                         document.getElementById('auth-status').textContent = '認證失敗，請重新載入。';
                     }
                 });
             } catch (error) {
                 console.error("Firebase Authentication Error:", error);
+                isFirebaseReady = false;
                 document.getElementById('auth-status').textContent = `認證錯誤: ${error.message}`;
             }
         };
 
         // 3. 實時監聽資料庫
         const initializeListeners = () => {
-            if (!db) return;
+            if (!db || !isFirebaseReady) { 
+                document.getElementById('loading-message').textContent = '等待 Firebase 連接...';
+                return;
+            }
             
             const awardeesCollectionRef = collection(db, getAwardeesCollectionPath());
             
@@ -276,8 +284,10 @@
         authenticateUser();
 
     } else {
+        // 當配置遺失時，顯示錯誤並將 isFirebaseReady 設為 false
         document.getElementById('auth-status').textContent = 'Firebase 配置遺失，請檢查設定。';
         document.getElementById('loading-message').textContent = 'Firebase 未初始化。';
+        isFirebaseReady = false;
     }
     // --- 結束 Firebase 必備邏輯 ---
 
@@ -311,8 +321,8 @@
         awardListContainer.innerHTML = '';
         awardCountSpan.textContent = awardees.length;
 
-        generateScriptBtn.disabled = awardees.length === 0;
-        generateNoticeBtn.disabled = awardees.length === 0;
+        generateScriptBtn.disabled = awardees.length === 0 || !isFirebaseReady;
+        generateNoticeBtn.disabled = awardees.length === 0 || !isFirebaseReady;
 
         if (awardees.length === 0) {
             awardListContainer.innerHTML = '<p class="text-center text-gray-500 p-4 bg-gray-50 rounded-lg">尚無獲獎名單，請使用上方表單新增。</p>';
@@ -347,6 +357,12 @@
     // --- 表單提交與資料寫入 ---
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
+        
+        if (!isFirebaseReady) {
+            console.error("Firebase is not initialized. Cannot submit data.");
+            document.getElementById('auth-status').textContent = 'Firebase 連接錯誤，請稍後重試。';
+            return;
+        }
         
         const formData = new FormData(form);
         const rewardValue = formData.get('reward');
@@ -395,7 +411,10 @@
             const docId = deleteBtn.getAttribute('data-id');
             // 替換 confirm() 警告窗，實際應用中應使用自定義 Modal
             if (window.confirm(`確定要刪除這筆獲獎資料嗎？`)) { 
-                if (!db) return;
+                if (!db || !isFirebaseReady) {
+                    console.error("Firebase is not ready. Cannot delete data.");
+                    return;
+                }
                 try {
                      // 實作指數退避重試機制
                     const maxRetries = 3;
