@@ -3,16 +3,16 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>獲獎填報網站（DJHS）</title>
+  <title>獲獎填報網站（GitHub Pages）</title>
   <style>
     :root { --border:#e5e7eb; --muted:#6b7280; }
     body { font-family: system-ui, -apple-system, "Microsoft JhengHei", sans-serif; margin: 24px; }
-    .card { max-width: 820px; margin: 0 auto; padding: 20px; border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 2px 6px rgba(0,0,0,.06); }
+    .card { max-width: 860px; margin: 0 auto; padding: 20px; border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 2px 6px rgba(0,0,0,.06); }
     .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
     label { display: block; margin: 8px 0 6px; font-weight: 600; }
     input, textarea, select { width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 16px; }
     textarea { min-height: 96px; }
-    .btn { margin-top: 10px; width: 100%; padding: 12px; font-size: 16px; border: none; border-radius: 10px; background:#111827; color:#fff; cursor:pointer; }
+    .btn { margin-top: 10px; width: 100%; padding: 12px; font-size: 16px; border: none; border-radius: 10px; background:#0f172a; color:#fff; cursor:pointer; }
     .muted { color: var(--muted); font-size: 14px; }
     .links a { display: inline-block; margin-right: 8px; margin-bottom: 6px; }
     .ok { color:#065f46; }
@@ -91,8 +91,8 @@
   </div>
 
   <script>
-    // ⬇⬇⬇ 把這個換成你的 GAS Web App URL（https://script.google.com/macros/s/…/exec）
-   const GAS_URL = 'https://script.google.com/a/macros/st.tc.edu.tw/s/AKfycbwJzfScCjzETPZOdBVFwXzUT0C1bQFhe780piXg6OWhBarH9dos9763di-WQm_G0UAjmg/exec';
+    // ── 把這個換成你的 GAS Web App URL（/exec）
+    const GAS_URL = 'https://script.google.com/a/macros/st.tc.edu.tw/s/AKfycbwJzfScCjzETPZOdBVFwXzUT0C1bQFhe780piXg6OWhBarH9dos9763di-WQm_G0UAjmg/exec';
 
     (function(){ const iso = new Date().toISOString().slice(0,10); document.getElementById('awardDate').value = iso; })();
     const $ = id => document.getElementById(id);
@@ -114,12 +114,18 @@
 
       toggleBtn(true);
       try {
-        const res  = await fetch(GAS_URL, { method:'POST', mode:'cors', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
-        const data = await res.json();
-        if (!data || !data.ok) throw new Error(data && data.message ? data.message : '未知錯誤');
+        // 使用 x-www-form-urlencoded，避免 CORS 預檢（OPTIONS）
+        const body = new URLSearchParams(payload).toString();
+        const res  = await fetch(GAS_URL, { method:'POST', body });
+        const ct   = res.headers.get('content-type') || '';
+        const data = ct.includes('application/json') ? await res.json() : {};
+        if (!data || !data.ok) throw new Error((data && data.message) ? data.message : '未知錯誤');
         showLinks(data);
-      } catch (err) { showMsg('發生錯誤：' + (err.message || err), true); }
-      finally { toggleBtn(false); }
+      } catch (err) {
+        showMsg('發生錯誤：' + (err.message || err), true);
+      } finally {
+        toggleBtn(false);
+      }
     });
 
     function showLinks(d){
