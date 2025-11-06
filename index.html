@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>獲獎名單填報與文件自動產出系統 (GAS 連線版)</title>
+    <title>學生獎懲報表與文件自動化系統</title>
     <!-- 載入 Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- 載入 Lucide Icons -->
@@ -30,11 +30,11 @@
         <header class="mb-8 p-4 bg-white shadow-lg rounded-xl">
             <h1 class="text-3xl font-extrabold text-blue-800 mb-2 flex items-center">
                 <i data-lucide="award" class="w-8 h-8 mr-3"></i>
-                獲獎名單填報與文件自動產出系統 (GAS 連線版)
+                學生獎懲報表與文件自動化系統
             </h1>
             <div id="gas-status-message" class="text-sm text-red-600 font-semibold p-2 bg-red-100 rounded-lg flex items-center">
                 <i data-lucide="alert-triangle" class="w-5 h-5 mr-2"></i>
-                連線失敗，請檢查 `GAS_WEB_APP_URL` 與 Apps Script 部署狀態/權限。
+                連線失敗，請檢查 Apps Script 部署狀態/權限。
             </div>
         </header>
 
@@ -83,8 +83,8 @@
                                 <option value="">請選擇</option>
                                 <option value="嘉獎一次">嘉獎一次</option>
                                 <option value="嘉獎二次">嘉獎二次</option>
-                                <option value="記功一次">記功一次</option>
-                                <option value="記功二次">記功二次</option>
+                                <option value="小功一次">小功一次</option>
+                                <option value="小功二次">小功二次</option>
                                 <option value="無敘獎(僅表揚)">無敘獎(僅表揚)</option>
                             </select>
                         </div>
@@ -192,9 +192,10 @@
             return '無';
         }
 
+        // 邏輯已更新：包含 '嘉獎' -> 嘉獎法條; 包含 '小功' -> 小功法條
         if (reward.includes('嘉獎')) {
             return '第四條第十六款';
-        } else if (reward.includes('記功')) {
+        } else if (reward.includes('小功')) { 
             return '第五條第十二款';
         } else {
             return '無';
