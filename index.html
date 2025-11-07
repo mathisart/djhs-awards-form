@@ -1,177 +1,171 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="zh-Hant">
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>獎懲名單填報與文件自動產出系統</title>
-  <link rel="preconnect" href="https://cdn.jsdelivr.net" />
+  <title>獎懲建議表｜填報與輸出</title>
   <style>
     :root{
-      --primary:#2563eb;     /* 藍底白字 */
-      --primary-500:#2563eb;
-      --primary-600:#1d4ed8;
-      --danger:#dc2626;      /* 紅底白字 */
-      --muted:#6b7280;
       --border:#e5e7eb;
-      --bg:#f8fafc;
+      --muted:#6b7280;
+      --brand:#2563eb; /* 藍底白字 */
+      --brand-600:#1d4ed8;
+      --danger:#ef4444; /* 紅底白字 */
+      --bg:#fafafa;
     }
     *{box-sizing:border-box}
-    body{margin:0;font-family:system-ui,-apple-system,"Microsoft JhengHei",sans-serif;background:var(--bg);color:#111827}
-    .wrap{max-width:1180px;margin:24px auto;padding:0 16px}
-    .grid{display:grid;gap:18px;grid-template-columns:340px 1fr}
-    .card{background:#fff;border:1px solid var(--border);border-radius:12px;box-shadow:0 2px 6px rgba(0,0,0,.05)}
-    .card .hd{padding:16px 18px;border-bottom:1px solid var(--border);font-weight:700}
-    .card .bd{padding:18px}
+    body{margin:0;background:var(--bg);font-family: system-ui,-apple-system,"Microsoft JhengHei",sans-serif;color:#111}
+    .wrap{max-width:1200px;margin:28px auto;padding:0 16px}
+    .row{display:grid;grid-template-columns: 340px 1fr;gap:18px}
+    h1{font-size:20px;margin:0;font-weight:800;letter-spacing:.02em}
+    .top{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+    .badge{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--border);background:#fff;padding:8px 12px;border-radius:999px;color:#111}
+    .badge.success{background:#10b981;color:#fff;border-color:#10b981}
+    .card{background:#fff;border:1px solid var(--border);border-radius:14px;padding:16px}
+    .left .field{margin-bottom:14px}
+    .label{font-size:13px;color:var(--muted);margin-bottom:6px}
+    .input,.select,textarea{width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:#fff}
+    textarea{min-height:96px;resize:vertical}
+    .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:1px solid var(--border);background:#fff;border-radius:10px;padding:10px 14px;cursor:pointer}
+    .btn:disabled{opacity:.45;cursor:not-allowed}
+    .btn.primary{background:var(--brand);border-color:var(--brand);color:#fff}
+    .btn.primary:hover{background:var(--brand-600);border-color:var(--brand-600)}
+    .btn.danger{background:var(--danger);border-color:var(--danger);color:#fff}
+    .btn-row{display:flex;gap:10px;margin-bottom:10px}
+    .search-row{display:flex;gap:10px;margin:10px 0}
+    .tbl{width:100%;border-collapse:collapse}
+    .tbl th,.tbl td{border-bottom:1px solid var(--border);padding:10px 12px;text-align:left}
+    .tbl thead th{font-size:13px;color:var(--muted);font-weight:700}
+    .muted{color:var(--muted)}
+    .tools{display:flex;align-items:center;gap:10px}
+    .right .card{padding:12px}
+    .top-bar{display:flex;align-items:center;gap:12px}
+    .spacer{flex:1}
 
-    label{display:block;font-size:14px;color:#374151;margin:12px 0 6px}
-    input[type="text"],input[type="date"],select,textarea{
-      width:100%;padding:12px 12px;border:1px solid var(--border);border-radius:10px;font-size:15px;background:#fff
+    /* ===== Award (獎懲建議表) Preview Card ===== */
+    .award-card{border:1px solid var(--border);border-radius:12px;padding:16px;background:#fff}
+    .award-title{font-size:18px;font-weight:800;letter-spacing:.02em;margin:0 0 6px}
+    .award-tip{color:var(--muted);font-size:13px;margin:2px 0 12px}
+    .award-list{display:flex;flex-direction:column;gap:10px}
+    .award-item{
+      display:grid;
+      grid-template-columns:72px 56px 92px 1fr;
+      gap:10px;align-items:center;
+      border:1px solid var(--border);border-radius:10px;padding:10px
     }
-    textarea{min-height:84px;resize:vertical}
+    .award-badge{font-size:12px;background:#f3f4f6;border-radius:999px;padding:3px 10px}
+    .award-name{font-weight:700}
+    .award-desc{line-height:1.7}
 
-    .row{display:grid;gap:12px}
-    .row-2{grid-template-columns:1fr 1fr}
-    /* 調整：事由與成績上下排列 -> 用單欄 row 取代原本並排 */
-    .stack{grid-template-columns:1fr}
-
-    .btn{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--border);background:#fff;
-      padding:10px 14px;border-radius:10px;font-size:14px;cursor:pointer;user-select:none}
-    .btn:disabled{opacity:.5;cursor:not-allowed}
-    .btn-primary{background:var(--primary);border-color:var(--primary);color:#fff}
-    .btn-primary:hover{background:var(--primary-600);border-color:var(--primary-600)}
-    .btn-danger{background:var(--danger);border-color:var(--danger);color:#fff}
-    .btn-muted{color:#374151}
-    .btn-ghost{background:#fff}
-
-    .toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
-    .right{margin-left:auto}
-
-    table{width:100%;border-collapse:separate;border-spacing:0 10px}
-    thead th{font-size:13px;color:#4b5563;font-weight:600;padding:6px 10px}
-    tbody tr{background:#fff;border:1px solid var(--border);border-radius:10px}
-    tbody td{padding:12px 10px;border-top:1px solid var(--border)}
-    tbody tr:first-child td{border-top-left-radius:10px;border-top-right-radius:10px}
-    tbody tr:last-child td{border-bottom-left-radius:10px;border-bottom-right-radius:10px}
-
-    /* 勾兩筆以上時的視覺強調（仍維持啟用/停用邏輯） */
-    .cta{transform:translateZ(0);box-shadow:0 6px 14px rgba(37,99,235,.25)}
-
-    /* 預覽 Modal */
-    .backdrop{position:fixed;inset:0;background:rgba(0,0,0,.42);display:none;align-items:center;justify-content:center;padding:24px}
-    .modal{max-width:720px;width:100%;background:#fff;border-radius:14px;border:1px solid var(--border);box-shadow:0 10px 30px rgba(0,0,0,.2)}
-    .modal-hd{padding:14px 16px;border-bottom:1px solid var(--border);display:flex;gap:10px;align-items:center}
-    .modal-title{font-weight:700}
-    .modal-bd{padding:16px}
-    .modal-ft{padding:12px 16px;border-top:1px solid var(--border);display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap}
-
-    .badge-ok{background:#10b981;color:#fff;border:1px solid #10b981}
-    .status-pill{padding:6px 10px;border-radius:999px;font-size:13px;font-weight:600}
+    /* ===== Modal ===== */
+    .modal{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.35);padding:16px}
+    .modal.active{display:flex}
+    .modal .inner{max-width:860px;width:100%;background:#fff;border-radius:14px;border:1px solid var(--border)}
+    .modal .hd{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--border)}
+    .modal .bd{padding:16px;max-height:60vh;overflow:auto}
+    .modal .ft{display:flex;gap:10px;justify-content:flex-end;padding:12px 16px;border-top:1px solid var(--border)}
   </style>
-  <script defer src="https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.1/dist/html2pdf.bundle.min.js"></script>
-  <script defer src="./config.js"></script>
-  <script defer src="./app.js"></script>
 </head>
 <body>
   <div class="wrap">
-    <div class="grid">
+    <div class="top">
+      <div class="top-bar">
+        <h1>🏫 獎懲建議表｜填報與輸出</h1>
+      </div>
+      <div id="connBadge" class="badge">後端連線狀態檢查中…</div>
+    </div>
+
+    <div class="row">
       <!-- 左側：表單 -->
-      <div class="card">
-        <div class="hd">新增獲獎同學</div>
-        <div class="bd">
+      <div class="left card">
+        <div class="field">
+          <div class="label">班級</div>
+          <input id="cClass" class="input" placeholder="例如：701"/>
+        </div>
+        <div class="field">
+          <div class="label">座號</div>
+          <input id="cSeat" class="input" placeholder="例如：15"/>
+        </div>
+        <div class="field">
+          <div class="label">姓名</div>
+          <input id="cName" class="input" placeholder="例如：王小明"/>
+        </div>
+        <div class="field">
+          <div class="label">發生日（可留空）</div>
+          <input id="cDate" class="input" type="date"/>
+        </div>
 
-          <label>班級</label>
-          <input id="clsInput" type="text" placeholder="例如：701" />
+        <div class="field">
+          <div class="label">事由（獲獎原因 / 比賽名稱）</div>
+          <textarea id="cReason" class="input" placeholder="例如：英語朗讀比賽"></textarea>
+        </div>
 
-          <label>座號</label>
-          <input id="seatInput" type="text" placeholder="例如：15" />
+        <div class="field">
+          <div class="label">成績（名次 / 等第）</div>
+          <input id="cRank" class="input" placeholder="例如：第一名、第二名、特優、優等、佳作"/>
+        </div>
 
-          <label>姓名</label>
-          <input id="nameInput" type="text" placeholder="例如：王小明" />
-
-          <label>發生日期</label>
-          <input id="dateInput" type="date" />
-
-          <!-- 調整：事由 與 成績 -> 上下排列 -->
-          <div class="row stack">
-            <div>
-              <label>事由（獲獎原因／比賽名稱）</label>
-              <textarea id="reasonInput" placeholder="例如：英語朗讀比賽"></textarea>
-            </div>
-            <div>
-              <label>成績（名次／等第）</label>
-              <input id="resultInput" type="text" placeholder="例如：第一名、第二名" />
-            </div>
-          </div>
-
-          <label>獎懲種類（僅敘獎時使用；司儀稿不使用）</label>
-          <select id="awardInput">
-            <!-- 預設留白，不顯示『不敘獎』 -->
-            <option value=""></option>
+        <div class="field">
+          <div class="label">獎懲種類（僅敘獎時使用；司儀稿不使用）</div>
+          <select id="cAward" class="select">
+            <option value="">（留白 / 不敘獎）</option>
             <option>嘉獎一支</option>
             <option>嘉獎二支</option>
             <option>小功一支</option>
             <option>小功二支</option>
           </select>
+        </div>
 
-          <div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap">
-            <button id="addBtn" class="btn btn-primary">＋加入名單</button>
-            <span id="backendStatus" class="status-pill" style="display:none"></span>
-          </div>
-
+        <div class="btn-row">
+          <button id="btnAdd" class="btn primary">＋加入名單</button>
+          <button id="btnPing" class="btn">後端連線成功</button>
         </div>
       </div>
 
-      <!-- 右側：清單 -->
-      <div class="card">
-        <div class="hd">
-          已填報名單（共 <span id="count">0</span> 筆）
-        </div>
-        <div class="bd">
-          <div class="toolbar">
-            <button id="btnEmcee" class="btn btn-primary">一鍵產出司儀稿（預覽）</button>
-            <button id="btnAward" class="btn btn-ghost">一鍵產出敘獎單</button>
-
-            <div class="right">
-              <input id="q" type="text" class="btn" style="width:280px" placeholder="搜尋：班級／姓名／事由／成績" />
-              <button id="refreshBtn" class="btn btn-muted">重新整理</button>
-              <button id="clearBtn" class="btn btn-danger">清除紀錄</button>
-            </div>
+      <!-- 右側：名單與操作 -->
+      <div class="right card">
+        <div class="tools">
+          <div class="btn-row">
+            <button id="btnEmcee" class="btn primary">一鍵產出司儀稿</button>
+            <button id="btnAward" class="btn primary">一鍵產出敘獎單</button>
           </div>
-
-          <div style="height:10px"></div>
-
-          <table>
-            <thead>
-              <tr>
-                <th style="width:54px">選</th>
-                <th style="width:80px">班級</th>
-                <th style="width:80px">座號</th>
-                <th style="width:160px">姓名</th>
-                <th>事由</th>
-                <th style="width:120px">成績</th>
-              </tr>
-            </thead>
-            <tbody id="tbody"></tbody>
-          </table>
+          <div class="spacer"></div>
+          <input id="q" class="input" placeholder="搜尋：班級 / 姓名 / 事由 / 成績" style="max-width:340px">
+          <button id="btnRefresh" class="btn">重新整理</button>
+          <button id="btnClear" class="btn danger">清除紀錄</button>
         </div>
+
+        <table class="tbl" id="list">
+          <thead>
+            <tr>
+              <th style="width:44px;">選</th>
+              <th>班級</th><th>座號</th><th>姓名</th>
+              <th>事由</th><th>成績</th>
+            </tr>
+          </thead>
+          <tbody id="tb"></tbody>
+        </table>
+        <div class="muted" style="padding:8px 2px">只保留：班級 / 座號 / 姓名 / 事由 / 成績。</div>
       </div>
     </div>
   </div>
 
-  <!-- Modal：司儀稿 -->
-  <div id="backdrop" class="backdrop">
-    <div class="modal">
-      <div class="modal-hd">
-        <div class="modal-title" id="modalTitle">頒獎典禮司儀稿（預覽）</div>
-        <div class="right"></div>
+  <!-- Modal -->
+  <div id="modal" class="modal" role="dialog" aria-modal="true">
+    <div class="inner">
+      <div class="hd">
+        <div id="modalTitle">預覽</div>
+        <button id="modalClose" class="btn">關閉</button>
       </div>
-      <div class="modal-bd" id="docBody"></div>
-      <div class="modal-ft">
-        <button id="copyBtn" class="btn btn-ghost">複製文字</button>
-        <button id="downloadPdfBtn" class="btn btn-primary">匯出 PDF</button>
-        <button id="closeModal" class="btn">關閉</button>
+      <div class="bd" id="modalBody"></div>
+      <div class="ft">
+        <button id="openDocBtn" class="btn primary">匯出試算表</button>
+        <button id="openPdfBtn" class="btn primary">匯出 PDF</button>
       </div>
     </div>
   </div>
+
+  <script src="config.js"></script>
+  <script src="app.js"></script>
 </body>
 </html>
