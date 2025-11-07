@@ -1,4 +1,4 @@
-/* app.js — DJHS 獎懲系統前端（GitHub Pages / Google Sites 皆可） */
+/* app.js — DJHS 獎懲系統前端（含司儀稿預覽／複製／前端PDF） */
 (function () {
   // ─────────────────────────────────────
   // 基本工具
@@ -14,6 +14,14 @@
     r?.includes("嘉獎") ? "第四條第十六款" :
     r?.includes("小功") ? "第五條第十二款" : "";
 
+  // 司儀稿相關規則
+  const EMCEE_SUFFIX = "恭請校長頒獎";
+  const NAME_JOINER = "、";
+  const RESULT_WHITELIST = [
+    "第一名","第二名","第三名","特優","優等","佳作",
+    "金牌","銀牌","銅牌","金質獎","銀質獎","銅質獎"
+  ];
+
   // DOM
   const topWarn = $("#topWarn");
   const tbody = $("#tbody");
@@ -21,6 +29,7 @@
   const q = $("#q");
   const refreshBtn = $("#refreshBtn");
   const btnAward = $("#btnAward");
+  const btnEmcee = $("#btnEmcee");
 
   const form = $("#form");
   const classInput = $("#classInput");
@@ -29,6 +38,14 @@
   const dateInput = $("#dateInput");
   const reasonInput = $("#reasonInput");
   const rewardSelect = $("#rewardSelect");
+
+  // Modal
+  const backdrop = $("#backdrop");
+  const modalTitle = $("#modalTitle");
+  const docBody = $("#docBody");
+  const copyBtn = $("#copyBtn");
+  const downloadPdfBtn = $("#downloadPdfBtn");
+  $("#closeModal").addEventListener("click", () => (backdrop.style.display = "none"));
 
   // cache list
   let _cacheList = [];
@@ -49,7 +66,9 @@
       .map((x) => x.value);
   }
   function updateButtons() {
-    btnAward.disabled = selectedIds().length === 0;
+    const n = selectedIds().length;
+    btnEmcee.disabled = n === 0;
+    btnAward.disabled = n === 0;
   }
   tbody.addEventListener("change", (e) => {
     if (e.target.classList.contains("rowchk")) updateButtons();
@@ -139,10 +158,110 @@
   });
 
   // ─────────────────────────────────────
-  // 一鍵產出：敘獎單（後端複製試算表範本＋填入＋回傳 Doc/PDF）
+  // 司儀稿產出（預覽 → 複製 / 前端 PDF）
+  // ─────────────────────────────────────
+  function normalizeTail(s) {
+    return String(s || "").trim().replace(/[，。．、：:；;]+$/g, "");
+  }
+  function splitByHonor(s) {
+    const raw = normalizeTail(s);
+    const i = raw.indexOf("榮獲");
+    if (i <= 0) return { comp: raw, result: "" };
+    const comp = raw.slice(0, i).replace(/^(參加|於|在)/, "").replace(/[，、。:：]+$/, "").trim();
+    const result = raw.slice(i + 2).replace(/^[，、。:：]+/, "").replace(/[，、。:：]+$/, "").trim();
+    return { comp: comp || "未填事由", result };
+  }
+  function normalizeResult(r) {
+    const s = String(r || "").trim();
+    if (RESULT_WHITELIST.includes(s)) return s;
+    for (const w of RESULT_WHITELIST) if (s.includes(w)) return w;
+    return s;
+  }
+  function classKey(c) {
+    const m = String(c || "").match(/\d+/);
+    return m ? Number(m[0]) : 9999;
+  }
+  function getCheckedRows() {
+    return $$(".rowchk:checked").map((chk) => {
+      const t = chk.closest("tr").children;
+      return {
+        班級: t[1].innerText.trim(),
+        座號: t[2].innerText.trim(),
+        姓名: t[3].innerText.trim(),
+        事由: t[4].innerText.trim(),
+        獎懲種類: t[5].innerText.trim()
+      };
+    });
+  }
+  function buildEmceePreviewHTML() {
+    const rows = getCheckedRows();
+    if (!rows.length) {
+      toast("請至少勾選一筆");
+      return "";
+    }
+    // 按比賽（榮獲前）分組
+    const byComp = new Map();
+    for (const r of rows) {
+      const { comp, result } = splitByHonor(r.事由);
+      const normResult = normalizeResult(result);
+      const phrase = `${r.班級}班${r.姓名}${normResult ? `榮獲${normResult}` : ""}`;
+      if (!byComp.has(comp)) byComp.set(comp, []);
+      byComp.get(comp).push({ phrase, cls: r.班級 });
+    }
+
+    const lines = [];
+    for (const [comp, list] of byComp.entries()) {
+      list.sort((a, b) => classKey(a.cls) - classKey(b.cls));
+      const joined = list.map((x) => x.phrase).join(NAME_JOINER);
+      lines.push(`${comp}，${joined}，${EMCEE_SUFFIX}。`);
+    }
+
+    return `
+      <div>
+        ${lines.map((p) => `<p style="margin:0 0 8px">${p}</p>`).join("")}
+      </div>
+    `;
+  }
+
+  function showModal(title, html) {
+    modalTitle.textContent = title;
+    docBody.innerHTML = html || "";
+    backdrop.style.display = "flex";
+  }
+
+  btnEmcee.addEventListener("click", () => {
+    const html = buildEmceePreviewHTML();
+    if (!html) return;
+    showModal("頒獎典禮司儀稿（預覽）", html);
+  });
+
+  copyBtn.addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText(docBody.innerText);
+      toast("已複製到剪貼簿");
+    } catch {
+      toast("無法複製，請手動選取文字複製");
+    }
+  });
+
+  downloadPdfBtn.addEventListener("click", () => {
+    if (!window.html2pdf) return toast("找不到 html2pdf 套件");
+    window
+      .html2pdf()
+      .from(docBody)
+      .set({
+        margin: 10,
+        filename: `司儀稿_${Date.now()}.pdf`,
+        jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
+      })
+      .save();
+  });
+
+  // ─────────────────────────────────────
+  // 一鍵產出：敘獎單（後端）
   // ─────────────────────────────────────
   btnAward.addEventListener("click", async () => {
-    const ids = selectedIds();
+    const ids = $$(".rowchk:checked").map((x) => x.value);
     if (!ids.length) {
       toast("請至少勾選一筆資料");
       return;
@@ -155,7 +274,6 @@
       window.open(pdfUrl, "_blank");
     };
 
-    // 優先 JSON 送法，若失敗再 fallback x-www-form-urlencoded（ids 為 JSON 字串）
     try {
       const res = await fetch(WEB_APP_URL, {
         method: "POST",
