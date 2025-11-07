@@ -20,7 +20,7 @@ const cReason = document.querySelector("#cReason");
 const cRank   = document.querySelector("#cRank");
 const cAward  = document.querySelector("#cAward");
 
-/* ========= Modal（新版：依類型切換按鈕） ========= */
+/* ========= Modal（依類型切換按鈕） ========= */
 const modal       = document.querySelector("#modal");
 const modalTitle  = document.querySelector("#modalTitle");
 const modalBody   = document.querySelector("#modalBody");
@@ -58,29 +58,23 @@ function buildFilenameFromRows(rows){
 
 /* ========= 司儀稿：前端 PDF ========= */
 function ensureHtml2pdf(){
-  return new Promise((resolve, reject)=>{
+  return new Promise((resolve)=>{
     if (window.html2pdf) return resolve();
-
     const s = document.createElement("script");
     s.src   = "https://cdn.jsdelivr.net/npm/html2pdf.js@0.9.3/dist/html2pdf.bundle.min.js";
-    s.onload  = () => resolve();
-    s.onerror = () => reject(new Error("html2pdf 載入失敗"));
+    s.onload= () => resolve();
     document.head.appendChild(s);
-
-    // 10 秒超時保護
-    setTimeout(()=>{
-      if (!window.html2pdf) reject(new Error("html2pdf 載入逾時"));
-    }, 10000);
   });
 }
-
 async function exportEmceePdf(html, filename){
   await ensureHtml2pdf();
   const box = document.createElement("div");
+  box.style.width = "794px";      // A4 寬度（約 96dpi）
+  box.style.padding = "16px";
   box.innerHTML = html;
   const opt = {
     margin: 10,
-    filename: `${filename}.pdf`,
+    filename: `${filename || "司儀稿"}.pdf`,
     image: { type:'jpeg', quality:0.98 },
     html2canvas: { scale:2, useCORS:true },
     jsPDF: { unit:'mm', format:'a4', orientation:'portrait' }
@@ -89,21 +83,31 @@ async function exportEmceePdf(html, filename){
 }
 
 /* ========= 後端：建立敘獎單（試算表 & PDF） =========
-   預期後端接受 { action:'create_award_doc', rows:[...] }
-   回傳 { ok:true, sheetUrl:'...', pdfUrl:'...' }
+   使用 x-www-form-urlencoded，避免 CORS preflight
+   後端預期：
+     action=create_award_doc
+     rows=<JSON 字串陣列>
+   回傳 JSON：
+     { ok:true, sheetUrl:'...', pdfUrl:'...' } 或 { status:'success', ... }
 */
 async function createAwardDoc(rows){
-  const res = await fetch(WEB_APP_URL, {
+  const form = new URLSearchParams();
+  form.set("action", "create_award_doc");
+  form.set("rows", JSON.stringify(rows));
+
+  const res  = await fetch(WEB_APP_URL, {
     method: "POST",
+    body:   form,
     mode:   "cors",
-    headers:{ "Content-Type":"application/json" },
-    body:   JSON.stringify({ action:"create_award_doc", rows })
+    cache:  "no-store",
   });
-  const data = await res.json().catch(()=>null);
-  if (!data) throw new Error("後端無回應");
-  if (data.ok) return data;
-  // 也容忍 status: 'success'
-  if (data.status === "success" || data.status === "ok") {
+
+  const txt  = await res.text();
+  let data   = null;
+  try { data = JSON.parse(txt); } catch { /* 不是 JSON */ }
+
+  if (!data) throw new Error("後端無回應或格式錯誤");
+  if (data.ok || data.status === "success" || data.status === "ok") {
     return { ok:true, sheetUrl:data.sheetUrl, pdfUrl:data.pdfUrl };
   }
   throw new Error(data.message || "建立文件失敗");
@@ -126,10 +130,7 @@ async function copyTextToClipboard(text){
 }
 
 /* ========= 預覽 Modal 入口 =========
-   options = {
-     type: 'emcee' | 'award',
-     rows, html, text, sheetUrl?, pdfUrl?
-   }
+   options = { type:'emcee'|'award', rows, html, text, sheetUrl?, pdfUrl? }
 */
 function openPreviewModal(options){
   const { type, rows, html, text } = options || {};
@@ -141,29 +142,19 @@ function openPreviewModal(options){
 
   // 清事件
   openDocBtn.onclick = null;
-  openPdfBtn.onclick = async () => {
-  try{
-    const htmlForPdf = html || `<div style="padding:12px">${(text||"").replace(/\n/g,"<br>")}</div>`;
-    console.log("[司儀稿匯出 PDF] filename:", filename, "html length:", (htmlForPdf||"").length);
-    await exportEmceePdf(htmlForPdf, filename);
-  }catch(e){
-    console.error(e);
-    toast("匯出 PDF 失敗，請稍後再試。");
-  }
-};
+  openPdfBtn.onclick = null;
+  openDocBtn.disabled = false;
+  openPdfBtn.disabled = false;
 
   if (type === "emcee"){
     // 司儀稿：openDoc=複製文字；openPdf=前端PDF
     openDocBtn.textContent = "複製文字";
     openPdfBtn.textContent = "匯出 PDF";
 
-    openDocBtn.disabled = false;
-    openPdfBtn.disabled = false;
-
     openDocBtn.onclick = () => copyTextToClipboard(text || "");
     openPdfBtn.onclick = async () => {
       try{
-        const htmlForPdf = html || `<div style="padding:12px">${(text||"").replace(/\n/g,"<br>")}</div>`;
+        const htmlForPdf = html || `<div style="line-height:1.8;font-size:14px">${(text||"").replace(/\n/g,"<br>")}</div>`;
         await exportEmceePdf(htmlForPdf, filename);
       }catch(e){
         console.error(e);
@@ -175,9 +166,6 @@ function openPreviewModal(options){
     // 敘獎單：openDoc=匯出試算表；openPdf=後端PDF
     openDocBtn.textContent = "匯出試算表";
     openPdfBtn.textContent = "匯出 PDF";
-
-    openDocBtn.disabled = false;
-    openPdfBtn.disabled = false;
 
     openDocBtn.onclick = async () => {
       try{
@@ -196,14 +184,14 @@ function openPreviewModal(options){
 
     openPdfBtn.onclick = async () => {
       try{
-        // 先直接用連結；成功則嘗試另存檔名（跨網域可能失敗）
+        const filenameBase = filename || "獎懲建議表";
         const openOrSave = async (url) => {
           try{
             const r = await fetch(url, { mode:"cors" });
             const b = await r.blob();
             const a = document.createElement("a");
             a.href = URL.createObjectURL(b);
-            a.download = `${filename}.pdf`;
+            a.download = `${filenameBase}.pdf`;
             document.body.appendChild(a);
             a.click();
             a.remove();
@@ -375,14 +363,14 @@ async function pingBackend() {
   let ok = false;
 
   try {
-    // 2) 第一招：GET + no-cors（只要能連上就視為成功）
+    // 2) 先 GET no-cors（只要可連就視為成功）
     try {
       const url = WEB_APP_URL + (WEB_APP_URL.includes("?") ? "&" : "?") + "_t=" + Date.now();
       await withTimeout(fetch(url, { method:"GET", mode:"no-cors", cache:"no-store" }), 5000);
-      ok = true; // opaque 也會走到這裡 → 視為 OK
+      ok = true;
     } catch (_) {}
 
-    // 3) 若還是不 OK，再試 POST(JSON)
+    // 3) 再試 POST(JSON)
     if (!ok) {
       try {
         const r = await withTimeout(fetch(WEB_APP_URL, {
@@ -395,7 +383,7 @@ async function pingBackend() {
       } catch (_) {}
     }
 
-    // 4) 再不行，試 POST(form)
+    // 4) 最後 POST(form)
     if (!ok) {
       try {
         const form = new URLSearchParams();
