@@ -4,9 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>獎懲名單填報與文件自動產出系統</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
   <style>
-    :root {
+    :root{
       --border:#e5e7eb; --muted:#6b7280; --bg:#fafafa;
       --ok:#16a34a; --ok-text:#fff; --bad:#ef4444; --bad-text:#fff;
       --primary:#2563eb; --primary-text:#fff;
@@ -29,9 +28,11 @@
     textarea{min-height:96px;resize:vertical}
     .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
     @media (max-width:520px){.row{grid-template-columns:1fr}}
-    .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:10px 14px;border-radius:10px;border:1px solid var(--border);background:#fff;cursor:pointer}
+    .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:10px 14px;border-radius:10px;border:1px solid var(--border);background:#fff;cursor:pointer;font-size:14px}
     .btn.primary{background:var(--primary);border-color:var(--primary);color:var(--primary-text)}
     .btn:disabled{opacity:.5;cursor:not-allowed}
+    /* 勾選≧2 筆時的強調樣式 */
+    .btn.cta{background:var(--primary);color:#fff;border-color:var(--primary);font-size:16px;font-weight:600}
     .tbl{width:100%;border-collapse:separate;border-spacing:0;border:1px solid var(--border);border-radius:12px;overflow:hidden}
     .tbl th,.tbl td{padding:10px 12px;border-bottom:1px solid var(--border);font-size:14px;vertical-align:middle}
     .tbl th{background:#f8fafc;text-align:left;color:#374151}
@@ -100,7 +101,7 @@
         <div class="bd">
           <div style="margin-bottom:10px" class="tools">
             <button id="btnEmcee" class="btn">一鍵產出司儀稿（預覽）</button>
-            <button id="btnAward" class="btn primary">一鍵產出敘獎單</button>
+            <button id="btnAward" class="btn">一鍵產出敘獎單</button>
           </div>
           <table class="tbl">
             <thead>
