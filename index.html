@@ -1,170 +1,235 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>獲獎名單填報與文件自動產出系統</title>
-  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
+
   <style>
-    :root{
-      --bg:#f5f7fb; --card:#fff; --border:#e6e8ef; --muted:#6b7280; --text:#0f172a;
-      --blue:#1e3a8a; --blue-weak:#eef2ff; --btn:#64748b; --btn-disabled:#9aa3af;
-      --accent:#3b82f6; --accent-weak:#dbeafe; --danger:#ef4444;
-      --radius:14px; --shadow:0 8px 24px rgba(15,23,42,.06);
+    :root {
+      --fs-md: 15px;
+      --fs-lg: 18px;
+      --line: 1.55;
+      --border: 1px solid #d8d8d8;
+      --blue: #2563eb;
+      --gray: #f7f7f7;
+      --success: #16a34a;
+      --danger: #dc2626;
     }
-    *{box-sizing:border-box}
-    html,body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Microsoft JhengHei",Segoe UI,Roboto,Helvetica,Arial,sans-serif}
-    .wrap{max-width:1160px;margin:24px auto;padding:0 16px}
-    .top{background:#fff;border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:18px 20px;margin-bottom:16px}
-    .title{display:flex;gap:10px;align-items:center;font-weight:800;color:var(--blue);font-size:20px;margin:0}
-    .subtitle{display:flex;justify-content:space-between;gap:12px;margin-top:8px;color:var(--muted);font-size:13px}
-    .subtitle .warn{color:var(--danger)}
-    .grid{display:grid;grid-template-columns:1fr;gap:16px}
-    @media(min-width:980px){ .grid{grid-template-columns:420px 1fr} }
-    .card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden}
-    .card h3{margin:0;padding:16px 16px 8px;font-size:18px}
-    .card .pad{padding:16px}
-    label{display:block;font-size:12px;color:var(--muted);margin:10px 0 6px}
-    input,select,textarea{width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:#fff}
-    textarea{min-height:92px;resize:vertical}
-    .row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-    .btn{appearance:none;border:0;border-radius:10px;padding:12px 16px;font-weight:700;cursor:pointer}
-    .btn-primary{background:var(--accent);color:#fff}
-    .btn:disabled{cursor:not-allowed;opacity:.75}
-    .btn-wide{width:100%}
-    .hint{font-size:12px;color:var(--muted);margin-top:6px}
-    .rightHead{display:flex;justify-content:space-between;align-items:flex-end;padding:16px}
-    .count{font-size:14px;color:#334155}
-    .count b{font-size:28px;color:#111827;margin:0 6px}
-    .status{font-size:12px;color:var(--muted)}
-    .actions{display:flex;gap:10px;flex-wrap:wrap;padding:0 16px 12px}
-    .btn-gray{background:#e5e7eb;color:#374151}
-    .btn-gray:disabled{background:#e5e7eb;color:var(--btn-disabled)}
-    .tableWrap{padding:0 16px 16px}
-    .tbl{border-collapse:collapse;width:100%;min-width:760px;border:1px solid var(--border);border-radius:12px;overflow:hidden}
-    .tbl th,.tbl td{padding:10px 12px;border-bottom:1px solid var(--border);text-align:left;font-size:14px;background:#fff}
-    .tbl th{background:var(--blue-weak);font-weight:700}
-    .empty{padding:28px 12px;text-align:center;color:var(--muted)}
-    .toolRow{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:8px 16px}
-    .mono{font-family:ui-monospace,Menlo,Consolas,monospace}
-    .backdrop{position:fixed;inset:0;background:rgba(0,0,0,.35);display:none;align-items:center;justify-content:center;padding:16px}
-    .modal{width:min(880px,96vw);background:#fff;border-radius:16px;border:1px solid var(--border);box-shadow:var(--shadow);overflow:hidden}
-    .modal header{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-bottom:1px solid var(--border)}
-    .modal .body{padding:16px;max-height:70vh;overflow:auto}
-    .modal .foot{padding:12px 16px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
+
+    body {
+      margin: 0;
+      font-family: "Microsoft JhengHei", system-ui, sans-serif;
+      background: #fafafa;
+    }
+
+    header {
+      padding: 14px 22px;
+      font-size: var(--fs-lg);
+      background: white;
+      border-bottom: var(--border);
+      font-weight: 600;
+    }
+
+    .wrap {
+      display: flex;
+      gap: 22px;
+      padding: 22px;
+    }
+
+    .card {
+      background: white;
+      border: var(--border);
+      border-radius: 6px;
+      padding: 18px;
+      flex: 1;
+    }
+
+    h2 {
+      margin: 0 0 14px;
+      font-size: var(--fs-lg);
+    }
+
+    input, textarea, select {
+      width: 100%;
+      padding: 7px 9px;
+      font-size: var(--fs-md);
+      border: var(--border);
+      border-radius: 4px;
+    }
+
+    textarea {
+      resize: vertical;
+      height: 76px;
+      line-height: var(--line);
+    }
+
+    label {
+      display: block;
+      margin: 12px 0 6px;
+      font-size: var(--fs-md);
+      font-weight: 600;
+    }
+
+    button {
+      font-size: var(--fs-md);
+      padding: 10px 16px;
+      border-radius: 6px;
+      border: none;
+      cursor: pointer;
+      font-weight: 600;
+    }
+
+    .btn-primary {
+      background: var(--blue);
+      color: white;
+    }
+
+    .btn-gray {
+      background: #e4e4e4;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: var(--fs-md);
+    }
+
+    th, td {
+      border: var(--border);
+      padding: 6px 8px;
+      text-align: left;
+      line-height: var(--line);
+    }
+
+    th {
+      background: #f0f2f5;
+    }
+
+    #topWarn {
+      padding: 6px 12px;
+      font-size: var(--fs-md);
+      color: white;
+      font-weight: 600;
+      margin-bottom: 8px;
+      border-radius: 4px;
+      display: inline-block;
+    }
+
+    .ok { background: var(--success); }
+    .bad { background: var(--danger); }
+
+    /* Modal */
+    #backdrop {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.45);
+      align-items: center;
+      justify-content: center;
+      z-index: 999;
+    }
+    #modal {
+      background: white;
+      padding: 20px;
+      width: 540px;
+      max-height: 90vh;
+      border-radius: 8px;
+      overflow-y: auto;
+    }
+    #modal h3 {
+      margin: 0 0 10px;
+    }
+    #modal .btns {
+      margin-top: 18px;
+      display: flex;
+      gap: 10px;
+    }
   </style>
 </head>
+
 <body>
-<div class="wrap">
-  <div class="top">
-    <h2 class="title">👤 獲獎名單填報與文件自動產出系統</h2>
-    <div class="subtitle">
-      <div id="uid">👤 使用者 ID（用於共享/追蹤）：anonymous</div>
-      <div class="warn" id="topWarn">後端連線檢查中…</div>
-    </div>
-  </div>
+  <header>🏅 獲獎名單填報與文件自動產出系統</header>
 
-  <div class="grid">
-    <!-- 左側 -->
+  <div class="wrap">
+    <!-- 左側填報 -->
+    <div class="card" style="max-width: 360px">
+      <h2>新增獲獎同學</h2>
+      <form id="form">
+        <label>班級</label>
+        <input name="班級" placeholder="例如：701" required />
+
+        <label>座號</label>
+        <input name="座號" placeholder="例如：15" type="number" required />
+
+        <label>姓名</label>
+        <input name="姓名" placeholder="例如：王小明" required />
+
+        <label>發生日期</label>
+        <input name="發生日期" type="date" required />
+
+        <label>得獎原因（事由）</label>
+        <textarea name="事由" placeholder="例如：全國英語朗讀比賽榮獲第一名" required></textarea>
+
+        <label>獎懲種類</label>
+        <select name="獎懲種類" required>
+          <option value="">請選擇</option>
+          <option>嘉獎一支</option>
+          <option>嘉獎二支</option>
+          <option>小功一支</option>
+          <option>小功二支</option>
+        </select>
+
+        <button class="btn-primary" style="width:100%;margin-top:16px">＋加入名單</button>
+      </form>
+    </div>
+
+    <!-- 右側表格與按鈕 -->
     <div class="card">
-      <h3>新增獲獎同學</h3>
-      <div class="pad">
-        <form id="form">
-          <label>班級</label>
-          <input name="班級" placeholder="例如：701" required/>
-          <div class="row">
-            <div>
-              <label>座號</label>
-              <input name="座號" type="number" placeholder="例如：15"/>
-            </div>
-            <div>
-              <label>姓名</label>
-              <input name="姓名" placeholder="例如：王小明" required/>
-            </div>
-          </div>
-          <label>發生日期</label>
-          <input name="發生日期" type="date" required/>
-          <label>得獎原因（事由）</label>
-          <textarea name="事由" placeholder="例如：參加全國語文競賽榮獲特優" required></textarea>
-          <label>獎懲種類（敘獎內容）</label>
-          <select name="獎懲種類" id="rewardSelect" required>
-            <option value="" disabled selected>請選擇</option>
-            <option>嘉獎</option>
-            <option>小功</option>
-            <option>大功</option>
-            <option>警告</option>
-            <option>小過</option>
-            <option>大過</option>
-            <option>其他</option>
-          </select>
-          <label>法條依據</label>
-          <input name="法條依據" id="basisInput" placeholder="自動帶入，可覆寫"/>
-          <div class="hint">未填時會依「獎懲種類」自動填入常用法條</div>
-          <button type="submit" class="btn btn-primary btn-wide" style="margin-top:14px">加入名單</button>
-        </form>
-      </div>
-    </div>
+      <div id="topWarn" class="bad">後端連線失敗</div>
 
-    <!-- 右側 -->
-    <div class="card">
-      <div class="rightHead">
-        <h3>已填報名單</h3>
-        <div class="count">（共 <b id="count">0</b> 筆）</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <div>已填報名單（共 <span id="count">0</span> 筆）</div>
+        <input id="q" placeholder="搜尋：班級 / 姓名 / 事由" style="width:180px" />
       </div>
 
-      <div class="toolRow">
-        <input id="q" placeholder="搜尋：班級 / 姓名 / 事由 / 種類" style="flex:1; padding:8px 12px; border:1px solid var(--border); border-radius:10px; background:#fff"/>
-        <button id="refreshBtn" class="btn" style="background:#e5e7eb">重新整理</button>
-        <button id="toggleAllBtn" class="btn" style="background:#e5e7eb">全選/取消</button>
-      </div>
+      <table>
+        <thead>
+          <tr>
+            <th><input type="checkbox" id="toggleAllBtn" /></th>
+            <th>班級</th>
+            <th>座號</th>
+            <th>姓名</th>
+            <th>事由</th>
+            <th>獎懲</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"><tr><td colspan="6" style="text-align:center;padding:14px">尚無資料</td></tr></tbody>
+      </table>
 
-      <div class="pad" style="padding-top:0">
-        <div class="status" id="backendStatus">後端未初始化。</div>
-        <div style="margin:10px 0 14px; font-weight:700">文件產出</div>
-        <div class="actions">
-          <button id="btnEmcee" class="btn btn-gray" disabled>🎙️ 一鍵產出司儀稿</button>
-          <button id="btnAward" class="btn btn-gray" disabled>🧾 一鍵產出敘獎公告</button>
-        </div>
-      </div>
-
-      <div class="tableWrap">
-        <table class="tbl">
-          <thead>
-            <tr>
-              <th style="width:42px">選</th>
-              <th>編號</th><th>班級</th><th>座號</th><th>姓名</th>
-              <th>日期</th><th>事由</th><th>獎懲種類</th><th>法條依據</th><th>建立時間</th>
-            </tr>
-          </thead>
-          <tbody id="tbody">
-            <tr><td colspan="10" class="empty">尚無資料</td></tr>
-          </tbody>
-        </table>
+      <div style="display:flex;gap:10px;margin-top:16px;">
+        <button id="btnEmcee" class="btn-gray" disabled>一鍵產出司儀稿</button>
+        <button id="btnAward" class="btn-primary" disabled>一鍵產出敘獎單</button>
+        <button id="refreshBtn" class="btn-gray">重新整理</button>
       </div>
     </div>
   </div>
-</div>
 
-<!-- Modal -->
-<div id="backdrop" class="backdrop">
-  <div class="modal">
-    <header>
-      <div id="modalTitle" style="font-weight:800">輸出</div>
-      <button id="closeModal" class="btn" style="background:#e5e7eb">關閉</button>
-    </header>
-    <div id="docBody" class="body"></div>
-    <div class="foot">
-      <button id="copyBtn" class="btn" style="background:#e5e7eb;display:none">複製文字</button>
-      <button id="openDocBtn" class="btn" style="background:#e5e7eb;display:none">開啟雲端試算表</button>
-      <button id="openPdfBtn" class="btn btn-primary" style="display:none">開啟 PDF</button>
-      <button id="downloadPdfBtn" class="btn btn-primary" style="display:none">轉成 PDF</button>
+  <!-- Modal -->
+  <div id="backdrop">
+    <div id="modal">
+      <h3 id="modalTitle"></h3>
+      <div id="docBody" style="white-space:pre-wrap;line-height:1.7;"></div>
+      <div class="btns">
+        <button id="copyBtn" class="btn-primary">複製文字</button>
+        <button id="downloadPdfBtn" class="btn-gray">匯出 PDF</button>
+        <button id="closeModal" class="btn-gray">關閉</button>
+      </div>
     </div>
   </div>
-</div>
 
-<script defer src="https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.1/dist/html2pdf.bundle.min.js"></script>
-<script defer src="config.js"></script>
-<script defer src="app.js"></script>
+  <script defer src="./config.js"></script>
+  <script defer src="./app.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.1/dist/html2pdf.bundle.min.js"></script>
 </body>
 </html>
