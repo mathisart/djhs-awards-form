@@ -28,17 +28,18 @@
   };
 
   // ─────────────────────────────────────────────────────────────
-  // DOM 元件
+  // DOM 元件（全部加上容錯）
   // ─────────────────────────────────────────────────────────────
   const form = $("#form");
-  const tbody = $("#tbody");
+  const tbody = $("#tbody") || $("tbody");
   const countEl = $("#count");
   const q = $("#q");
   const btnEmcee = $("#btnEmcee");
   const btnAward = $("#btnAward");
 
-  const topWarn = $("#topWarn");           // 上方「後端連線成功／失敗」訊息
-  const backendStatus = $("#backendStatus");
+  // 可能在你的 HTML 用的是 class，這裡同時支援 id / class
+  const topWarn = $("#topWarn") || $(".top-warn");
+  const backendStatus = $("#backendStatus") || $(".backend-status");
 
   // Modal（預覽窗）
   const backdrop = $("#backdrop");
@@ -54,6 +55,20 @@
   // ─────────────────────────────────────────────────────────────
   let _cacheList = [];
 
+  function setBackendBanner(ok, msgOk = "後端連線成功", msgErr = "後端連線失敗", sub = "") {
+    if (ok) {
+      topWarn && (topWarn.textContent = msgOk);
+      topWarn?.classList.remove("is-error");
+      topWarn?.classList.add("is-ok");
+      backendStatus && (backendStatus.textContent = sub || "已載入最新資料。");
+    } else {
+      topWarn && (topWarn.textContent = msgErr);
+      topWarn?.classList.remove("is-ok");
+      topWarn?.classList.add("is-error");
+      backendStatus && (backendStatus.textContent = sub || "無法連線後端，請稍後重試。");
+    }
+  }
+
   async function loadList() {
     try {
       const res = await fetch(WEB_APP_URL, { method: "GET" }); // 不加任何自訂 header
@@ -61,33 +76,25 @@
       if (json.status !== "success") throw new Error(json.message || "讀取失敗");
 
       _cacheList = json.data || [];
-
-      // 狀態條：成功=綠底白字，失敗=紅底白字
-      topWarn.textContent = "後端連線成功";
-      topWarn.classList.remove("is-error");
-      topWarn.classList.add("is-ok");
-      backendStatus.textContent = "已載入最新資料。";
+      setBackendBanner(true);
 
       renderTable(_cacheList);
     } catch (e) {
       console.error(e);
-      topWarn.textContent = "後端連線失敗";
-      topWarn.classList.remove("is-ok");
-      topWarn.classList.add("is-error");
-      backendStatus.textContent = "無法連線後端，請稍後重試。";
-      tbody.innerHTML = '<tr><td colspan="10" class="empty">無法連線後端</td></tr>';
-      countEl.textContent = "0";
-      btnEmcee.disabled = btnAward.disabled = true;
+      setBackendBanner(false);
+      if (tbody) tbody.innerHTML = '<tr><td colspan="10" class="empty">無法連線後端</td></tr>';
+      if (countEl) countEl.textContent = "0";
+      if (btnEmcee) btnEmcee.disabled = true;
+      if (btnAward) btnAward.disabled = true;
     }
   }
 
   function renderTable(list) {
-    const kw = (q.value || "").toLowerCase();
-    const view = list
-      .filter((o) => {
-        const s = `${o["編號"] || ""} ${o["班級"] || ""} ${o["座號"] || ""} ${o["姓名"] || ""} ${o["發生日期"] || ""} ${o["事由"] || ""} ${o["獎懲種類"] || ""} ${o["法條依據"] || ""}`.toLowerCase();
-        return !kw || s.includes(kw);
-      });
+    const kw = (q?.value || "").toLowerCase();
+    const view = (list || []).filter((o) => {
+      const s = `${o["編號"] || ""} ${o["班級"] || ""} ${o["座號"] || ""} ${o["姓名"] || ""} ${o["發生日期"] || ""} ${o["事由"] || ""} ${o["獎懲種類"] || ""} ${o["法條依據"] || ""}`.toLowerCase();
+      return !kw || s.includes(kw);
+    });
 
     const rows = view.map(
       (o) => `
@@ -105,8 +112,10 @@
       </tr>`
     ).join("");
 
-    tbody.innerHTML = rows || `<tr><td colspan="10" class="empty">尚無資料</td></tr>`;
-    countEl.textContent = list.length;
+    if (tbody) {
+      tbody.innerHTML = rows || `<tr><td colspan="10" class="empty">尚無資料</td></tr>`;
+    }
+    if (countEl) countEl.textContent = String(list?.length ?? 0);
     updateButtons();
   }
 
@@ -115,11 +124,12 @@
   }
   function updateButtons() {
     const n = selectedIds().length;
-    btnEmcee.disabled = btnAward.disabled = !n;
+    if (btnEmcee) btnEmcee.disabled = !n;
+    if (btnAward) btnAward.disabled = !n;
   }
 
-  tbody.addEventListener("change", (e) => {
-    if (e.target.classList.contains("rowchk")) updateButtons();
+  tbody?.addEventListener("change", (e) => {
+    if (e.target.classList?.contains("rowchk")) updateButtons();
   });
   $("#toggleAllBtn")?.addEventListener("click", () => {
     const c = $$(".rowchk");
@@ -137,11 +147,8 @@
     e.preventDefault();
     const fd = new FormData(e.target);
     const payload = Object.fromEntries(fd.entries());
-
-    // 後端會自動帶「法條依據」，前端不再送
-    // 但保持欄位名稱一致（班級/座號/姓名/發生日期/事由/獎懲種類）
     try {
-      const body = new URLSearchParams(payload);           // ★ 不加 headers，送 URL-encoded → 不會預檢
+      const body = new URLSearchParams(payload);           // 不加 headers → 不會預檢
       const res = await fetch(WEB_APP_URL, { method: "POST", body });
       const json = await res.json();
       if (json.status !== "success") throw new Error(json.message);
@@ -156,8 +163,6 @@
 
   // ─────────────────────────────────────────────────────────────
   // 司儀稿（預覽 → 複製／PDF）
-  // 規格：同一「事由（榮獲前）」合併成單句：
-  //  [比賽]，[701班王小明榮獲第一名、702班林佳宜榮獲第二名]，恭請校長頒獎。
   // ─────────────────────────────────────────────────────────────
   const EMCEE_SUFFIX = "恭請校長頒獎";
   const NAME_JOINER = "、";
@@ -214,7 +219,6 @@
       toast("請至少勾選一筆");
       return "";
     }
-    // 以「比賽名稱（榮獲前）」分組
     const byComp = new Map();
     for (const r of rows) {
       const { comp, result } = splitByHonor(r.事由);
@@ -241,7 +245,6 @@
     `;
   }
 
-  // 司儀稿按鈕：先預覽，再由 modal 內按鈕做「複製」與「PDF」
   btnEmcee?.addEventListener("click", () => {
     const html = buildEmceePreviewHTML();
     if (!html) return;
@@ -249,8 +252,7 @@
   });
 
   // ─────────────────────────────────────────────────────────────
-  // 後端產生：敘獎單（試算表＋PDF）
-  // 這裡採用 URL-encoded（ids 用 JSON 字串）→ 避免預檢
+  // 後端產生：敘獎單（試算表＋PDF）— URL-encoded（避免預檢）
   // ─────────────────────────────────────────────────────────────
   btnAward?.addEventListener("click", async () => {
     const ids = selectedIds();
@@ -260,7 +262,7 @@
       const form = new URLSearchParams();
       form.set("action", "生成文件");
       form.set("type", "獎懲單製作");
-      form.set("ids", JSON.stringify(ids));  // 後端已支援字串自動 parse
+      form.set("ids", JSON.stringify(ids));
 
       const res = await fetch(WEB_APP_URL, { method: "POST", body: form });
       const json = await res.json();
@@ -284,21 +286,21 @@
   // Modal 控制（預覽／複製／PDF）
   // ─────────────────────────────────────────────────────────────
   function showModal(title, html, opt = {}) {
-    modalTitle.textContent = title;
-    docBody.innerHTML = html;
+    modalTitle && (modalTitle.textContent = title);
+    docBody && (docBody.innerHTML = html);
 
-    copyBtn.style.display = opt.copy ? "" : "none";
-    openDocBtn.style.display = opt.doc ? "" : "none";
-    openPdfBtn.style.display = opt.pdf ? "" : "none";
-    downloadPdfBtn.style.display = opt.frontPdf ? "" : "none";
+    if (copyBtn) copyBtn.style.display = opt.copy ? "" : "none";
+    if (openDocBtn) openDocBtn.style.display = opt.doc ? "" : "none";
+    if (openPdfBtn) openPdfBtn.style.display = opt.pdf ? "" : "none";
+    if (downloadPdfBtn) downloadPdfBtn.style.display = opt.frontPdf ? "" : "none";
 
-    backdrop.style.display = "flex";
+    if (backdrop) backdrop.style.display = "flex";
   }
-  $("#closeModal")?.addEventListener("click", () => (backdrop.style.display = "none"));
+  $("#closeModal")?.addEventListener("click", () => (backdrop ? (backdrop.style.display = "none") : null));
 
   copyBtn?.addEventListener("click", async () => {
     try {
-      await navigator.clipboard.writeText(docBody.innerText);
+      await navigator.clipboard.writeText(docBody?.innerText || "");
       toast("已複製");
     } catch {
       toast("無法複製");
@@ -307,6 +309,7 @@
 
   downloadPdfBtn?.addEventListener("click", () => {
     if (!window.html2pdf) return toast("找不到 html2pdf 套件");
+    if (!docBody) return toast("找不到可輸出的內容");
     window
       .html2pdf()
       .from(docBody)
