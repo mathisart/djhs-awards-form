@@ -20,24 +20,264 @@ const cReason= document.querySelector("#cReason");
 const cRank  = document.querySelector("#cRank");
 const cAward = document.querySelector("#cAward");
 
-/* Modal */
-const modal = document.querySelector("#modal");
+/* ========= Modal（新版：依類型切換按鈕） ========= */
+const modal      = document.querySelector("#modal");
 const modalTitle = document.querySelector("#modalTitle");
 const modalBody  = document.querySelector("#modalBody");
 const modalClose = document.querySelector("#modalClose");
 const openDocBtn = document.querySelector("#openDocBtn");
 const openPdfBtn = document.querySelector("#openPdfBtn");
+modalClose.onclick = () => modal.classList.remove("active");
 
-function showModal(title, html){
-  modalTitle.textContent = title || "預覽";
+/* ========= 共用：檔名工具 ========= */
+function sanitizeFilename(name){
+  return (name || "")
+    .replace(/[\s　]+/g, "")           // 去空白
+    .replace(/[\/\\\?\%\*\:\|\"\<\>]/g, "") // 禁字
+    .slice(0, 60);
+}
+function buildFilenameFromRows(rows){
+  if (!rows || rows.length === 0) return "輸出文件";
+  // 以第一筆為主組檔名
+  const first = rows[0];
+  const base = sanitizeFilename(`${first.class || first.班級}${first.seat || first.座號}-${first.reason || first.事由}`);
+  return rows.length > 1 ? `${base}_等${rows.length}筆` : base;
+}
+
+/* ========= 前端 PDF（司儀稿用） ========= */
+function ensureHtml2pdf(){
+  return new Promise((resolve) => {
+    if (window.html2pdf) return resolve();
+    const s = document.createElement("script");
+    s.src = "https://cdn.jsdelivr.net/npm/html2pdf.js@0.9.3/dist/html2pdf.bundle.min.js";
+    s.onload = () => resolve();
+    document.head.appendChild(s);
+  });
+}
+async function exportEmceePdf(html, filename){
+  await ensureHtml2pdf();
+  const container = document.createElement("div");
+  container.innerHTML = html;
+  const opt = {
+    margin:       10,
+    filename:     `${filename}.pdf`,
+    image:        { type:'jpeg', quality:0.98 },
+    html2canvas:  { scale:2, useCORS:true },
+    jsPDF:        { unit:'mm', format:'a4', orientation:'portrait' }
+  };
+  await html2pdf().from(container).set(opt).save();
+}
+
+/* ========= 後端：建立敘獎單（試算表 & PDF） ========= */
+/* 你後端 GAS 可接受以下 payload: {action:'create_award_doc', rows:[...] } 
+   回傳: { ok:true, sheetUrl:'...', pdfUrl:'...' } */
+async function createAwardDoc(rows){
+  try{
+    const res = await fetch(WEB_APP_URL, {
+      method: "POST",
+      mode:   "cors",
+      headers:{ "Content-Type":"application/json" },
+      body:   JSON.stringify({ action:"create_award_doc", rows })
+    });
+    const data = await res.json();
+    if (data && (data.sheetUrl || data.pdfUrl)) return data;
+    throw new Error("No link returned");
+  }catch(err){
+    console.error("createAwardDoc failed:", err);
+    throw err;
+  }
+}
+
+/* ========= 共用：複製文字 ========= */
+async function copyTextToClipboard(text){
+  try{
+    await navigator.clipboard.writeText(text || "");
+    alert("已複製文字到剪貼簿");
+  }catch{
+    // 備援
+    const ta = document.createElement("textarea");
+    ta.value = text || "";
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand("copy");
+    ta.remove();
+    alert("已複製文字到剪貼簿");
+  }
+}
+
+/* ========= Modal 入口：依 type 切換按鈕 & 行為 =========
+   options = {
+     type: 'emcee' | 'award',
+     rows:  [...],         // 具 class/seat/name/reason/rank 欄位
+     html:  '<div>...</div>',
+     text:  '純文字（司儀稿用）',
+     sheetUrl?: '...',     // award 可先傳，或讓函式去後端生
+     pdfUrl?: '...'
+   }
+*/
+function openPreviewModal(options){
+  const { type, rows, html, text } = options || {};
+  const filename = buildFilenameFromRows(rows);
+
+  modalTitle.textContent = (type === "emcee") ? "司儀稿（預覽）" : "獎懲建議表（預覽）";
   modalBody.innerHTML = html || "";
-  openDocBtn.disabled = true;
-  openPdfBtn.disabled = true;
+  modal.classList.add("active");
+
+  // 預設先清掉舊事件
   openDocBtn.onclick = null;
   openPdfBtn.onclick = null;
-  modal.classList.add("active");
+  openDocBtn.disabled = false;
+  openPdfBtn.disabled = false;
+
+  if (type === "emcee"){
+    // 司儀稿：複製文字 / 匯出 PDF（前端）
+    openDocBtn.textContent = "複製文字";
+    openPdfBtn.textContent = "匯出 PDF";
+
+    openDocBtn.onclick = () => copyTextToClipboard(text || "");
+    openPdfBtn.onclick = async () => {
+      try{
+        await exportEmceePdf(html || `<div style="padding:12px">${(text||"").replace(/\n/g,"<br>")}</div>`, filename);
+      }catch(e){
+        console.error(e);
+        alert("匯出 PDF 失敗，請稍後再試。");
+      }
+    };
+
+  }else{
+    // 敘獎單：匯出試算表 / 匯出 PDF（走後端）
+    openDocBtn.textContent = "匯出試算表";
+    openPdfBtn.textContent = "匯出 PDF";
+
+    openDocBtn.onclick = async () => {
+      try{
+        if (options.sheetUrl){
+          window.open(options.sheetUrl, "_blank");
+        }else{
+          openDocBtn.disabled = true;
+          const out = await createAwardDoc(rows);
+          if (out.sheetUrl) window.open(out.sheetUrl, "_blank");
+          else alert("無法取得試算表連結。");
+        }
+      }catch(e){
+        console.error(e);
+        alert("建立試算表失敗，請稍後再試。");
+      }finally{
+        openDocBtn.disabled = false;
+      }
+    };
+
+    openPdfBtn.onclick = async () => {
+      try{
+        if (options.pdfUrl){
+          window.open(options.pdfUrl, "_blank");
+          return;
+        }
+        openPdfBtn.disabled = true;
+        const out = await createAwardDoc(rows);
+        if (out.pdfUrl){
+          // 嘗試以 blob 重新命名另存（跨網域可能會被 CORS 擋，失敗就直接開）
+          try{
+            const r = await fetch(out.pdfUrl, { mode:"cors" });
+            const b = await r.blob();
+            const a = document.createElement("a");
+            a.href = URL.createObjectURL(b);
+            a.download = `${filename}.pdf`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(a.href);
+          }catch{
+            window.open(out.pdfUrl, "_blank");
+          }
+        } else {
+          alert("無法取得 PDF 連結。");
+        }
+      }catch(e){
+        console.error(e);
+        alert("建立 PDF 失敗，請稍後再試。");
+      }finally{
+        openPdfBtn.disabled = false;
+      }
+    };
+  }
 }
-modalClose.onclick = () => modal.classList.remove("active");
+
+/* =========（可選）快速掛鉤：兩顆主按鈕點擊事件 =========
+   若你已經有自己的邏輯在 btnEmcee / btnAward 上，保留即可；
+   若沒有或想用我的做法，直接使用以下範例掛鉤。
+   需具備：getSelectedRows() 會回傳 [{class, seat, name, reason, rank}, ...]
+   以及兩個簡易的預覽輸出函式 buildEmceePreviewHTML / buildAwardPreviewHTML
+*/
+function getSelectedRows(){
+  // 範例：請改為你的實作（從列表 checkbox 蒐集）
+  const rows = [];
+  document.querySelectorAll('#list tbody tr').forEach(tr=>{
+    const chk = tr.querySelector('input[type="checkbox"]');
+    if (chk && chk.checked){
+      const cells = tr.querySelectorAll('td');
+      rows.push({
+        class:  cells[1]?.textContent?.trim(),
+        seat:   cells[2]?.textContent?.trim(),
+        name:   cells[3]?.textContent?.trim(),
+        reason: cells[4]?.textContent?.trim(),
+        rank:   cells[5]?.textContent?.trim()
+      });
+    }
+  });
+  return rows;
+}
+
+// 很簡單的預覽（你已經有漂亮卡片版也可以呼叫你的）
+function buildEmceePreviewHTML(rows){
+  // 這裡示範最小可用：一行式
+  const lines = rows.map(r => `${r.reason}：${r.class}班${r.name}榮獲${r.rank}`).join("、");
+  const text  = `${lines}，恭請校長頒獎。`;
+  const html  = `
+    <div class="award-card">
+      <div class="award-title">🏆 頒獎典禮司儀稿（自動彙整）</div>
+      <div class="award-tip">貼到 Google 文件可再微調。</div>
+      <div class="award-desc">${text}</div>
+    </div>`;
+  return { html, text };
+}
+function buildAwardPreviewHTML(rows){
+  const badge = (t)=>`<span class="award-badge">${t}</span>`;
+  const items = rows.map(r=>`
+    <div class="award-item">
+      ${badge(`${r.class}班`)}
+      ${badge(`座${r.seat}`)}
+      <div class="award-name">${r.name}</div>
+      <div class="award-desc">${r.reason}，${r.rank}</div>
+    </div>`).join("");
+  return `
+    <div class="award-card">
+      <div class="award-title">📄 獎懲建議表（預覽）</div>
+      <div class="award-tip">確認內容後再按下方「匯出」，產生正式文件。</div>
+      <div class="award-list">${items}</div>
+    </div>`;
+}
+
+// 若你尚未綁定事件，可用以下做法（已有的請保留你的）
+const btnEmcee = document.querySelector("#btnEmcee");
+if (btnEmcee){
+  btnEmcee.onclick = () => {
+    const rows = getSelectedRows();
+    if (!rows.length) return alert("請先勾選至少一筆。");
+    const { html, text } = buildEmceePreviewHTML(rows);
+    openPreviewModal({ type:"emcee", rows, html, text });
+  };
+}
+const btnAward = document.querySelector("#btnAward");
+if (btnAward){
+  btnAward.onclick = () => {
+    const rows = getSelectedRows();
+    if (!rows.length) return alert("請先勾選至少一筆。");
+    const html = buildAwardPreviewHTML(rows);
+    openPreviewModal({ type:"award", rows, html });
+  };
+}
+
 
 /* ========= 小工具 ========= */
 function toast(msg){ alert(msg); }
