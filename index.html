@@ -2,234 +2,166 @@
 <html lang="zh-Hant">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>獲獎名單填報與文件自動產出系統</title>
-
   <style>
     :root {
-      --fs-md: 15px;
-      --fs-lg: 18px;
-      --line: 1.55;
-      --border: 1px solid #d8d8d8;
-      --blue: #2563eb;
-      --gray: #f7f7f7;
-      --success: #16a34a;
-      --danger: #dc2626;
+      --border:#e5e7eb;
+      --muted:#6b7280;
+      --bg:#fafafa;
+      --primary:#2563eb;
+      --primary-600:#1d4ed8;
+      --success:#16a34a;
+      --danger:#dc2626;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      background:#fafafa;
+      font-family: system-ui, -apple-system, "Microsoft JhengHei", Segoe UI, Roboto, Helvetica, Arial, "Noto Sans", sans-serif;
+      color:#111827;
+    }
+    .wrap{max-width:1200px;margin:24px auto;padding:0 16px}
+    h1{font-size:20px;margin:0 0 16px}
+    .banner{
+      display:inline-block;
+      padding:8px 12px;
+      border-radius:8px;
+      font-weight:600;
+      margin-bottom:12px;
+    }
+    .banner.success{ background:var(--success); color:#fff; }
+    .banner.danger { background:var(--danger);  color:#fff; }
+
+    .grid{display:grid;gap:16px}
+    @media(min-width:900px){ .grid{grid-template-columns:380px 1fr;} }
+
+    .card{
+      background:#fff;border:1px solid var(--border);border-radius:12px;
+      padding:16px;
+      box-shadow:0 2px 6px rgba(0,0,0,.06);
+    }
+    .card h2{font-size:18px;margin:0 0 12px}
+
+    .field{margin:10px 0}
+    .field label{display:block;font-size:12px;color:#374151;margin:0 0 6px}
+    .field input,.field textarea,.field select{
+      width:100%;border:1px solid var(--border);border-radius:10px;padding:10px 12px;background:#fff;
+      font-size:14px;outline:none;
+    }
+    .field textarea{min-height:110px;resize:vertical}
+
+    .btn{
+      display:inline-block;border:1px solid var(--border);background:#fff;border-radius:10px;
+      padding:10px 14px;font-weight:600;cursor:pointer;user-select:none;
+    }
+    .btn.primary{ background:var(--primary); color:#fff; border-color:var(--primary); }
+    .btn.primary:hover{ background:var(--primary-600); }
+    .btn:disabled{opacity:.5;cursor:not-allowed}
+    .btn + .btn{margin-left:10px}
+
+    .tools{display:flex;align-items:center;gap:10px;margin:10px 0 12px}
+    .tools .grow{flex:1}
+    .tools input{
+      width:100%;border:1px solid var(--border);border-radius:10px;padding:10px 12px;font-size:14px;
     }
 
-    body {
-      margin: 0;
-      font-family: "Microsoft JhengHei", system-ui, sans-serif;
-      background: #fafafa;
+    /* 表格（只 5 欄） */
+    .listtable{width:100%;table-layout:fixed;border-collapse:collapse;border:1px solid var(--border);border-radius:10px;overflow:hidden}
+    .listtable th,.listtable td{
+      border-bottom:1px solid var(--border);padding:10px;vertical-align:top;background:#fff;
     }
+    .listtable thead th{background:#f9fafb;font-weight:700}
+    .listtable td:nth-child(5){word-break:break-all} /* 事由可能較長 */
+    .empty{color:var(--muted);text-align:center}
 
-    header {
-      padding: 14px 22px;
-      font-size: var(--fs-lg);
-      background: white;
-      border-bottom: var(--border);
-      font-weight: 600;
-    }
-
-    .wrap {
-      display: flex;
-      gap: 22px;
-      padding: 22px;
-    }
-
-    .card {
-      background: white;
-      border: var(--border);
-      border-radius: 6px;
-      padding: 18px;
-      flex: 1;
-    }
-
-    h2 {
-      margin: 0 0 14px;
-      font-size: var(--fs-lg);
-    }
-
-    input, textarea, select {
-      width: 100%;
-      padding: 7px 9px;
-      font-size: var(--fs-md);
-      border: var(--border);
-      border-radius: 4px;
-    }
-
-    textarea {
-      resize: vertical;
-      height: 76px;
-      line-height: var(--line);
-    }
-
-    label {
-      display: block;
-      margin: 12px 0 6px;
-      font-size: var(--fs-md);
-      font-weight: 600;
-    }
-
-    button {
-      font-size: var(--fs-md);
-      padding: 10px 16px;
-      border-radius: 6px;
-      border: none;
-      cursor: pointer;
-      font-weight: 600;
-    }
-
-    .btn-primary {
-      background: var(--blue);
-      color: white;
-    }
-
-    .btn-gray {
-      background: #e4e4e4;
-    }
-
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: var(--fs-md);
-    }
-
-    th, td {
-      border: var(--border);
-      padding: 6px 8px;
-      text-align: left;
-      line-height: var(--line);
-    }
-
-    th {
-      background: #f0f2f5;
-    }
-
-    #topWarn {
-      padding: 6px 12px;
-      font-size: var(--fs-md);
-      color: white;
-      font-weight: 600;
-      margin-bottom: 8px;
-      border-radius: 4px;
-      display: inline-block;
-    }
-
-    .ok { background: var(--success); }
-    .bad { background: var(--danger); }
-
-    /* Modal */
-    #backdrop {
-      display: none;
-      position: fixed;
-      inset: 0;
-      background: rgba(0,0,0,0.45);
-      align-items: center;
-      justify-content: center;
-      z-index: 999;
-    }
-    #modal {
-      background: white;
-      padding: 20px;
-      width: 540px;
-      max-height: 90vh;
-      border-radius: 8px;
-      overflow-y: auto;
-    }
-    #modal h3 {
-      margin: 0 0 10px;
-    }
-    #modal .btns {
-      margin-top: 18px;
-      display: flex;
-      gap: 10px;
-    }
+    .hint{font-size:12px;color:var(--muted);margin-left:8px}
   </style>
 </head>
-
 <body>
-  <header>🏅 獲獎名單填報與文件自動產出系統</header>
-
   <div class="wrap">
-    <!-- 左側填報 -->
-    <div class="card" style="max-width: 360px">
-      <h2>新增獲獎同學</h2>
-      <form id="form">
-        <label>班級</label>
-        <input name="班級" placeholder="例如：701" required />
+    <h1>🏅 獲獎名單填報與文件自動產出系統</h1>
 
-        <label>座號</label>
-        <input name="座號" placeholder="例如：15" type="number" required />
+    <!-- 後端狀態 Banner -->
+    <div id="topWarn" class="banner danger">後端連線失敗</div>
 
-        <label>姓名</label>
-        <input name="姓名" placeholder="例如：王小明" required />
+    <div class="grid">
+      <!-- 左：填報 -->
+      <section class="card">
+        <h2>新增獲獎同學</h2>
+        <form id="form">
+          <div class="field">
+            <label>班級</label>
+            <input id="classInput" placeholder="例如：701" />
+          </div>
+          <div class="field">
+            <label>座號</label>
+            <input id="seatInput" placeholder="例如：15" />
+          </div>
+          <div class="field">
+            <label>姓名</label>
+            <input id="nameInput" placeholder="例如：王小明" />
+          </div>
+          <div class="field">
+            <label>發生日期</label>
+            <input id="dateInput" type="date" />
+          </div>
+          <div class="field">
+            <label>得獎原因（事由）</label>
+            <textarea id="reasonInput" placeholder="例如：全國英語朗讀比賽榮獲第一名"></textarea>
+          </div>
+          <div class="field">
+            <label>獎懲種類</label>
+            <select id="rewardSelect">
+              <option value="">請選擇</option>
+              <option>嘉獎一支</option>
+              <option>嘉獎二支</option>
+              <option>小功一支</option>
+              <option>小功二支</option>
+            </select>
+          </div>
 
-        <label>發生日期</label>
-        <input name="發生日期" type="date" required />
+          <div class="field">
+            <button class="btn primary" type="submit">＋加入名單</button>
+          </div>
+        </form>
+      </section>
 
-        <label>得獎原因（事由）</label>
-        <textarea name="事由" placeholder="例如：全國英語朗讀比賽榮獲第一名" required></textarea>
+      <!-- 右：列表 -->
+      <section class="card">
+        <h2>已填報名單（共 <span id="count">0</span> 筆）</h2>
 
-        <label>獎懲種類</label>
-        <select name="獎懲種類" required>
-          <option value="">請選擇</option>
-          <option>嘉獎一支</option>
-          <option>嘉獎二支</option>
-          <option>小功一支</option>
-          <option>小功二支</option>
-        </select>
+        <div class="tools">
+          <input id="q" class="grow" placeholder="搜尋：班級 / 姓名 / 事由 / 獎懲" />
+          <button id="refreshBtn" class="btn">重新整理</button>
+        </div>
 
-        <button class="btn-primary" style="width:100%;margin-top:16px">＋加入名單</button>
-      </form>
-    </div>
+        <table class="listtable">
+          <thead>
+            <tr>
+              <th style="width:48px"></th>
+              <th>班級</th>
+              <th>座號</th>
+              <th>姓名</th>
+              <th>事由</th>
+              <th>獎懲</th>
+            </tr>
+          </thead>
+          <tbody id="tbody">
+            <tr><td colspan="6" class="empty">尚無資料</td></tr>
+          </tbody>
+        </table>
 
-    <!-- 右側表格與按鈕 -->
-    <div class="card">
-      <div id="topWarn" class="bad">後端連線失敗</div>
-
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-        <div>已填報名單（共 <span id="count">0</span> 筆）</div>
-        <input id="q" placeholder="搜尋：班級 / 姓名 / 事由" style="width:180px" />
-      </div>
-
-      <table>
-        <thead>
-          <tr>
-            <th><input type="checkbox" id="toggleAllBtn" /></th>
-            <th>班級</th>
-            <th>座號</th>
-            <th>姓名</th>
-            <th>事由</th>
-            <th>獎懲</th>
-          </tr>
-        </thead>
-        <tbody id="tbody"><tr><td colspan="6" style="text-align:center;padding:14px">尚無資料</td></tr></tbody>
-      </table>
-
-      <div style="display:flex;gap:10px;margin-top:16px;">
-        <button id="btnEmcee" class="btn-gray" disabled>一鍵產出司儀稿</button>
-        <button id="btnAward" class="btn-primary" disabled>一鍵產出敘獎單</button>
-        <button id="refreshBtn" class="btn-gray">重新整理</button>
-      </div>
+        <div style="margin-top:12px">
+          <span class="hint">勾選多筆可一次產出</span>
+          <button id="btnAward" class="btn primary" disabled>一鍵產出敘獎單</button>
+        </div>
+      </section>
     </div>
   </div>
 
-  <!-- Modal -->
-  <div id="backdrop">
-    <div id="modal">
-      <h3 id="modalTitle"></h3>
-      <div id="docBody" style="white-space:pre-wrap;line-height:1.7;"></div>
-      <div class="btns">
-        <button id="copyBtn" class="btn-primary">複製文字</button>
-        <button id="downloadPdfBtn" class="btn-gray">匯出 PDF</button>
-        <button id="closeModal" class="btn-gray">關閉</button>
-      </div>
-    </div>
-  </div>
-
+  <!-- 設定（請保留你的 config.js） -->
   <script defer src="./config.js"></script>
   <script defer src="./app.js"></script>
-  <script defer src="https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.1/dist/html2pdf.bundle.min.js"></script>
 </body>
 </html>
