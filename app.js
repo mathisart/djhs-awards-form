@@ -50,17 +50,20 @@
   const downloadPdfBtn = $("#downloadPdfBtn");
 
   // ─────────────────────────────────────────────────────────────
-  // 後端資料讀取與渲染
+  // 後端資料讀取與渲染（加入前端快取）
   // ─────────────────────────────────────────────────────────────
+  let _cacheList = [];
+
   async function loadList() {
     try {
       const res = await fetch(WEB_APP_URL, { method: "GET" });
       const json = await res.json();
       if (json.status !== "success") throw new Error(json.message || "讀取失敗");
 
+      _cacheList = json.data || [];
       topWarn.textContent = "後端連線成功";
       backendStatus.textContent = "已載入最新資料。";
-      renderTable(json.data || []);
+      renderTable(_cacheList);
     } catch (e) {
       console.error(e);
       topWarn.textContent = "後端連線失敗";
@@ -120,7 +123,8 @@
     updateButtons();
   });
   $("#refreshBtn").addEventListener("click", loadList);
-  q.addEventListener("input", loadList);
+  // 搜尋只在前端篩選，不重打 API
+  q.addEventListener("input", () => renderTable(_cacheList));
 
   // ─────────────────────────────────────────────────────────────
   // 表單送出（加入名單）
@@ -141,7 +145,8 @@
       if (json.status !== "success") throw new Error(json.message);
       toast("✅ 已加入名單");
       e.target.reset();
-      $("#basisInput").value = "";
+      const basisEl = $("#basisInput"); // 防呆：可能沒有這個欄位
+      if (basisEl) basisEl.value = "";
       await loadList();
     } catch (err) {
       toast("❌ 寫入失敗：" + err.message);
