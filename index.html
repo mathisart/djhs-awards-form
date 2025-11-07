@@ -76,6 +76,20 @@
     .empty{color:var(--muted);text-align:center}
 
     .hint{font-size:12px;color:var(--muted);margin-left:8px}
+
+    /* Modal */
+    .backdrop{
+      position:fixed;inset:0;background:rgba(0,0,0,.4);
+      display:none;align-items:center;justify-content:center;padding:16px;z-index:50;
+    }
+    .modal{
+      width:min(720px, 96vw);max-height:90vh;overflow:auto;background:#fff;border:1px solid var(--border);
+      border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.25);
+    }
+    .modal header{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--border)}
+    .modal h3{margin:0;font-size:18px}
+    .modal .body{padding:16px;line-height:1.9}
+    .modal footer{padding:12px 16px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px}
   </style>
 </head>
 <body>
@@ -152,16 +166,34 @@
           </tbody>
         </table>
 
-        <div style="margin-top:12px">
+        <div style="margin-top:12px;display:flex;gap:8px;align-items:center">
           <span class="hint">勾選多筆可一次產出</span>
+          <button id="btnEmcee" class="btn" disabled>一鍵產出司儀稿</button>
           <button id="btnAward" class="btn primary" disabled>一鍵產出敘獎單</button>
         </div>
       </section>
     </div>
   </div>
 
-  <!-- 設定（請保留你的 config.js） -->
+  <!-- 司儀稿 Modal -->
+  <div id="backdrop" class="backdrop" aria-hidden="true">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <header>
+        <h3 id="modalTitle">預覽</h3>
+        <button id="closeModal" class="btn">關閉</button>
+      </header>
+      <div id="docBody" class="body"></div>
+      <footer>
+        <button id="copyBtn" class="btn">複製文字</button>
+        <button id="downloadPdfBtn" class="btn primary">匯出 PDF（前端）</button>
+      </footer>
+    </div>
+  </div>
+
+  <!-- 設定與腳本 -->
   <script defer src="./config.js"></script>
+  <!-- html2pdf（前端 PDF） -->
+  <script defer src="https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.1/dist/html2pdf.bundle.min.js"></script>
   <script defer src="./app.js"></script>
 </body>
 </html>
