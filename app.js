@@ -9,7 +9,6 @@ const btnEmcee = document.querySelector("#btnEmcee");
 const btnAward = document.querySelector("#btnAward");
 const btnRefresh = document.querySelector("#btnRefresh");
 const btnClear = document.querySelector("#btnClear");
-const btnPing = document.querySelector("#btnPing");
 const connBadge = document.querySelector("#connBadge");
 
 /* 表單欄位 */
@@ -32,7 +31,6 @@ const openPdfBtn = document.querySelector("#openPdfBtn");
 function showModal(title, html){
   modalTitle.textContent = title || "預覽";
   modalBody.innerHTML = html || "";
-  // 預設先把匯出按鈕設成 disabled，等後端成功再綁定
   openDocBtn.disabled = true;
   openPdfBtn.disabled = true;
   openDocBtn.onclick = null;
@@ -57,7 +55,6 @@ function normalizeRes(s){
 }
 
 function buildEmceeParagraph(rows){
-  // 司儀稿：同一比賽聚合
   const groups = {};
   rows.forEach(r=>{
     const reason = (r.事由||"").trim();
@@ -146,8 +143,6 @@ function getCheckedRows(){
   return arr;
 }
 
-function selectedIds(){ return getCheckedRows().map(r=>r.id); }
-
 /* ========= 事件 ========= */
 btnAdd.onclick = ()=>{
   if(!cClass.value || !cSeat.value || !cName.value){
@@ -164,7 +159,7 @@ btnAdd.onclick = ()=>{
     獎懲種類: cAward.value.trim()
   });
   render();
-  cName.value=""; cSeat.value=""; cReason.value=""; cRank.value=""; /* 保留班級 */
+  cName.value=""; cSeat.value=""; cReason.value=""; cRank.value="";
 };
 
 inputQ.oninput = render;
@@ -175,26 +170,13 @@ btnClear.onclick = ()=>{
   render();
 };
 
-btnPing.onclick = async ()=>{
-  try{
-    const res = await fetch(WEB_APP_URL, { method:"GET", mode:"cors" });
-    connBadge.textContent = "後端連線成功";
-    connBadge.classList.add("success");
-  }catch{
-    connBadge.textContent = "後端連線失敗";
-    connBadge.classList.remove("success");
-  }
-};
-
 /* 司儀稿 */
 btnEmcee.addEventListener("click", async ()=>{
   const items = getCheckedRows();
   if(!items.length) return toast("請至少勾選一筆");
 
-  // 先顯示預覽
   showModal("司儀稿（預覽）", buildEmceeParagraph(items));
 
-  // 背景生成文件（可用同一個 action，由後端決定模板）
   try{
     let json;
     try{
@@ -228,10 +210,8 @@ btnAward.addEventListener("click", async ()=>{
   const items = getCheckedRows();
   if(!items.length) return toast("請至少勾選一筆");
 
-  // 卡片式預覽
   showModal("獎懲建議表（預覽）", buildAwardCardHTML(items));
 
-  // 背景呼叫後端建檔：不顯示連結，只把匯出綁到按鈕
   try{
     let json;
     try{
@@ -260,9 +240,21 @@ btnAward.addEventListener("click", async ()=>{
   }
 });
 
-/* ========= 啟動：初始資料 or 後端載入 ========= */
-/* 這裡先用空陣列；如果你原本有「讀取後端」函式，呼叫後 render() 即可 */
-render();
+/* ========= 連線檢查（統一一個徽章） ========= */
+async function pingBackend(){
+  connBadge.classList.remove("success");
+  connBadge.textContent = "後端連線狀態檢查中…";
+  try{
+    await fetch(WEB_APP_URL, { method:"GET", mode:"cors" });
+    connBadge.textContent = "後端連線成功";
+    connBadge.classList.add("success"); // 綠底白字
+  }catch{
+    connBadge.textContent = "後端連線失敗";
+    connBadge.classList.remove("success");
+  }
+}
+connBadge.addEventListener("click", pingBackend);
 
-/* ========= 連線徽章：開站即嘗試 ping 一次 ========= */
-btnPing.click();
+/* ========= 啟動 ========= */
+render();
+pingBackend(); // 載入即檢查
