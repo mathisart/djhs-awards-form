@@ -244,16 +244,51 @@ btnAward.addEventListener("click", async ()=>{
 async function pingBackend(){
   connBadge.classList.remove("success");
   connBadge.textContent = "後端連線狀態檢查中…";
-  try{
-    await fetch(WEB_APP_URL, { method:"GET", mode:"cors" });
-    connBadge.textContent = "後端連線成功";
-    connBadge.classList.add("success"); // 綠底白字
-  }catch{
+
+  let ok = false;
+
+  try {
+    // 1) 先試 JSON
+    try {
+      const r = await fetch(WEB_APP_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "ping" })
+      });
+      const j = await r.json().catch(()=>null);
+      ok = j && (j.status === "success" || j.status === "ok");
+    } catch (_) {}
+
+    // 2) 不行就試 form-urlencoded
+    if(!ok){
+      try {
+        const form = new URLSearchParams();
+        form.set("action", "ping");
+        const r2 = await fetch(WEB_APP_URL, { method: "POST", body: form });
+        const j2 = await r2.json().catch(()=>null);
+        ok = j2 && (j2.status === "success" || j2.status === "ok");
+      } catch (_) {}
+    }
+
+    // 3) 仍不行就做 no-cors GET（保底：只要沒拋錯視為存活）
+    if(!ok){
+      await fetch(WEB_APP_URL, { method: "GET", mode: "no-cors" });
+      ok = true;
+    }
+
+    if(ok){
+      connBadge.textContent = "後端連線成功";
+      connBadge.classList.add("success");  // 綠底白字
+    }else{
+      connBadge.textContent = "後端連線失敗";
+      connBadge.classList.remove("success");
+    }
+  } catch (e) {
     connBadge.textContent = "後端連線失敗";
     connBadge.classList.remove("success");
   }
 }
-connBadge.addEventListener("click", pingBackend);
+
 
 /* ========= 啟動 ========= */
 render();
