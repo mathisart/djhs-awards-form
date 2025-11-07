@@ -4,144 +4,174 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>獎懲名單填報與文件自動產出系統</title>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" />
   <style>
     :root{
-      --border:#e5e7eb; --muted:#6b7280; --bg:#fafafa;
-      --ok:#16a34a; --ok-text:#fff; --bad:#ef4444; --bad-text:#fff;
-      --primary:#2563eb; --primary-text:#fff;
+      --primary:#2563eb;     /* 藍底白字 */
+      --primary-500:#2563eb;
+      --primary-600:#1d4ed8;
+      --danger:#dc2626;      /* 紅底白字 */
+      --muted:#6b7280;
+      --border:#e5e7eb;
+      --bg:#f8fafc;
     }
     *{box-sizing:border-box}
-    body{font-family:system-ui,-apple-system,"Microsoft JhengHei",sans-serif;margin:0;background:var(--bg);color:#111}
-    .wrap{max-width:1200px;margin:24px auto;padding:0 16px}
-    .grid{display:grid;grid-template-columns:380px 1fr;gap:20px}
-    @media (max-width:980px){.grid{grid-template-columns:1fr}}
-    .card{background:#fff;border:1px solid var(--border);border-radius:12px}
-    .card .hd{padding:14px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;justify-content:space-between}
-    .card .bd{padding:16px}
-    h1{font-size:18px;margin:0;display:flex;gap:8px;align-items:center}
-    .status{padding:8px 12px;border-radius:999px;font-size:14px;font-weight:600;border:1px solid transparent}
-    .status.ok{background:var(--ok);color:var(--ok-text)}
-    .status.bad{background:var(--bad);color:var(--bad-text)}
-    .muted{color:var(--muted)}
-    label{display:block;font-size:13px;color:var(--muted);margin:10px 0 6px}
-    input,select,textarea{width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:10px;font-size:14px}
-    textarea{min-height:96px;resize:vertical}
-    .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-    @media (max-width:520px){.row{grid-template-columns:1fr}}
-    .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:10px 14px;border-radius:10px;border:1px solid var(--border);background:#fff;cursor:pointer;font-size:14px}
-    .btn.primary{background:var(--primary);border-color:var(--primary);color:var(--primary-text)}
+    body{margin:0;font-family:system-ui,-apple-system,"Microsoft JhengHei",sans-serif;background:var(--bg);color:#111827}
+    .wrap{max-width:1180px;margin:24px auto;padding:0 16px}
+    .grid{display:grid;gap:18px;grid-template-columns:340px 1fr}
+    .card{background:#fff;border:1px solid var(--border);border-radius:12px;box-shadow:0 2px 6px rgba(0,0,0,.05)}
+    .card .hd{padding:16px 18px;border-bottom:1px solid var(--border);font-weight:700}
+    .card .bd{padding:18px}
+
+    label{display:block;font-size:14px;color:#374151;margin:12px 0 6px}
+    input[type="text"],input[type="date"],select,textarea{
+      width:100%;padding:12px 12px;border:1px solid var(--border);border-radius:10px;font-size:15px;background:#fff
+    }
+    textarea{min-height:84px;resize:vertical}
+
+    .row{display:grid;gap:12px}
+    .row-2{grid-template-columns:1fr 1fr}
+    /* 調整：事由與成績上下排列 -> 用單欄 row 取代原本並排 */
+    .stack{grid-template-columns:1fr}
+
+    .btn{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--border);background:#fff;
+      padding:10px 14px;border-radius:10px;font-size:14px;cursor:pointer;user-select:none}
     .btn:disabled{opacity:.5;cursor:not-allowed}
-    /* 勾選≧2 筆時的強調樣式 */
-    .btn.cta{background:var(--primary);color:#fff;border-color:var(--primary);font-size:16px;font-weight:600}
-    .tbl{width:100%;border-collapse:separate;border-spacing:0;border:1px solid var(--border);border-radius:12px;overflow:hidden}
-    .tbl th,.tbl td{padding:10px 12px;border-bottom:1px solid var(--border);font-size:14px;vertical-align:middle}
-    .tbl th{background:#f8fafc;text-align:left;color:#374151}
-    .tbl tr:last-child td{border-bottom:none}
-    .searchbar{display:flex;gap:8px}
-    .searchbar input{flex:1}
-    .tools{display:flex;gap:8px;flex-wrap:wrap}
-    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace}
+    .btn-primary{background:var(--primary);border-color:var(--primary);color:#fff}
+    .btn-primary:hover{background:var(--primary-600);border-color:var(--primary-600)}
+    .btn-danger{background:var(--danger);border-color:var(--danger);color:#fff}
+    .btn-muted{color:#374151}
+    .btn-ghost{background:#fff}
+
+    .toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+    .right{margin-left:auto}
+
+    table{width:100%;border-collapse:separate;border-spacing:0 10px}
+    thead th{font-size:13px;color:#4b5563;font-weight:600;padding:6px 10px}
+    tbody tr{background:#fff;border:1px solid var(--border);border-radius:10px}
+    tbody td{padding:12px 10px;border-top:1px solid var(--border)}
+    tbody tr:first-child td{border-top-left-radius:10px;border-top-right-radius:10px}
+    tbody tr:last-child td{border-bottom-left-radius:10px;border-bottom-right-radius:10px}
+
+    /* 勾兩筆以上時的視覺強調（仍維持啟用/停用邏輯） */
+    .cta{transform:translateZ(0);box-shadow:0 6px 14px rgba(37,99,235,.25)}
+
+    /* 預覽 Modal */
+    .backdrop{position:fixed;inset:0;background:rgba(0,0,0,.42);display:none;align-items:center;justify-content:center;padding:24px}
+    .modal{max-width:720px;width:100%;background:#fff;border-radius:14px;border:1px solid var(--border);box-shadow:0 10px 30px rgba(0,0,0,.2)}
+    .modal-hd{padding:14px 16px;border-bottom:1px solid var(--border);display:flex;gap:10px;align-items:center}
+    .modal-title{font-weight:700}
+    .modal-bd{padding:16px}
+    .modal-ft{padding:12px 16px;border-top:1px solid var(--border);display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap}
+
+    .badge-ok{background:#10b981;color:#fff;border:1px solid #10b981}
+    .status-pill{padding:6px 10px;border-radius:999px;font-size:13px;font-weight:600}
   </style>
+  <script defer src="https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.1/dist/html2pdf.bundle.min.js"></script>
+  <script defer src="./config.js"></script>
+  <script defer src="./app.js"></script>
 </head>
 <body>
   <div class="wrap">
     <div class="grid">
-      <!-- 左：表單 -->
+      <!-- 左側：表單 -->
       <div class="card">
-        <div class="hd">
-          <h1>新增獲獎同學</h1>
-          <div id="topWarn" class="status bad">後端連線失敗</div>
-        </div>
+        <div class="hd">新增獲獎同學</div>
         <div class="bd">
-          <form id="form">
-            <label>班級</label>
-            <input name="班級" placeholder="例如：701" required />
-            <label>座號</label>
-            <input name="座號" placeholder="例如：15" required />
-            <label>姓名</label>
-            <input name="姓名" placeholder="例如：王小明" required />
-            <label>發生日期</label>
-            <input name="發生日期" type="date" />
-            <div class="row">
-              <div>
-                <label>事由（獲獎原因/比賽名稱）</label>
-                <textarea name="事由" placeholder="例如：英語朗讀比賽"></textarea>
-              </div>
-              <div>
-                <label>成績（名次/等第）</label>
-                <input name="成績" placeholder="例如：第一名、第二名、特優、優等…" />
-              </div>
+
+          <label>班級</label>
+          <input id="clsInput" type="text" placeholder="例如：701" />
+
+          <label>座號</label>
+          <input id="seatInput" type="text" placeholder="例如：15" />
+
+          <label>姓名</label>
+          <input id="nameInput" type="text" placeholder="例如：王小明" />
+
+          <label>發生日期</label>
+          <input id="dateInput" type="date" />
+
+          <!-- 調整：事由 與 成績 -> 上下排列 -->
+          <div class="row stack">
+            <div>
+              <label>事由（獲獎原因／比賽名稱）</label>
+              <textarea id="reasonInput" placeholder="例如：英語朗讀比賽"></textarea>
             </div>
-            <label>獎懲種類（僅敘獎單使用；司儀稿不使用）</label>
-            <select name="獎懲種類">
-              <option value="">（不敘獎）</option>
-              <option>嘉獎一支</option>
-              <option>嘉獎二支</option>
-              <option>小功一支</option>
-              <option>小功二支</option>
-            </select>
-            <div style="margin-top:12px">
-              <button type="submit" class="btn primary">＋加入名單</button>
+            <div>
+              <label>成績（名次／等第）</label>
+              <input id="resultInput" type="text" placeholder="例如：第一名、第二名" />
             </div>
-          </form>
+          </div>
+
+          <label>獎懲種類（僅敘獎時使用；司儀稿不使用）</label>
+          <select id="awardInput">
+            <!-- 預設留白，不顯示『不敘獎』 -->
+            <option value=""></option>
+            <option>嘉獎一支</option>
+            <option>嘉獎二支</option>
+            <option>小功一支</option>
+            <option>小功二支</option>
+          </select>
+
+          <div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap">
+            <button id="addBtn" class="btn btn-primary">＋加入名單</button>
+            <span id="backendStatus" class="status-pill" style="display:none"></span>
+          </div>
+
         </div>
       </div>
 
-      <!-- 右：清單 -->
+      <!-- 右側：清單 -->
       <div class="card">
         <div class="hd">
-          <h1>已填報名單（共 <span id="count">0</span> 筆）</h1>
-          <div class="tools">
-            <div class="searchbar">
-              <input id="q" placeholder="搜尋：班級 / 姓名 / 事由 / 成績" />
-              <button id="refreshBtn" class="btn">重新整理</button>
-            </div>
-          </div>
+          已填報名單（共 <span id="count">0</span> 筆）
         </div>
         <div class="bd">
-          <div style="margin-bottom:10px" class="tools">
-            <button id="btnEmcee" class="btn">一鍵產出司儀稿（預覽）</button>
-            <button id="btnAward" class="btn">一鍵產出敘獎單</button>
+          <div class="toolbar">
+            <button id="btnEmcee" class="btn btn-primary">一鍵產出司儀稿（預覽）</button>
+            <button id="btnAward" class="btn btn-ghost">一鍵產出敘獎單</button>
+
+            <div class="right">
+              <input id="q" type="text" class="btn" style="width:280px" placeholder="搜尋：班級／姓名／事由／成績" />
+              <button id="refreshBtn" class="btn btn-muted">重新整理</button>
+              <button id="clearBtn" class="btn btn-danger">清除紀錄</button>
+            </div>
           </div>
-          <table class="tbl">
+
+          <div style="height:10px"></div>
+
+          <table>
             <thead>
               <tr>
-                <th style="width:48px">選</th>
-                <th>班級</th>
-                <th>座號</th>
-                <th>姓名</th>
+                <th style="width:54px">選</th>
+                <th style="width:80px">班級</th>
+                <th style="width:80px">座號</th>
+                <th style="width:160px">姓名</th>
                 <th>事由</th>
-                <th>成績</th>
+                <th style="width:120px">成績</th>
               </tr>
             </thead>
-            <tbody id="tbody">
-              <tr><td colspan="6" class="muted">尚無資料</td></tr>
-            </tbody>
+            <tbody id="tbody"></tbody>
           </table>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- 司儀稿預覽 Modal -->
-  <div id="backdrop" style="position:fixed;inset:0;background:rgba(0,0,0,.4);display:none;align-items:center;justify-content:center;padding:16px;">
-    <div class="card" style="max-width:780px;width:100%;max-height:88vh;overflow:auto">
-      <div class="hd">
-        <h1 id="modalTitle">預覽</h1>
-        <button id="closeModal" class="btn">關閉</button>
+  <!-- Modal：司儀稿 -->
+  <div id="backdrop" class="backdrop">
+    <div class="modal">
+      <div class="modal-hd">
+        <div class="modal-title" id="modalTitle">頒獎典禮司儀稿（預覽）</div>
+        <div class="right"></div>
       </div>
-      <div class="bd">
-        <div id="docBody" style="line-height:1.9"></div>
-        <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">
-          <button id="copyBtn" class="btn">複製文字</button>
-          <button id="downloadPdfBtn" class="btn">匯出PDF</button>
-        </div>
+      <div class="modal-bd" id="docBody"></div>
+      <div class="modal-ft">
+        <button id="copyBtn" class="btn btn-ghost">複製文字</button>
+        <button id="downloadPdfBtn" class="btn btn-primary">匯出 PDF</button>
+        <button id="closeModal" class="btn">關閉</button>
       </div>
     </div>
   </div>
-
-  <script src="https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.1/dist/html2pdf.bundle.min.js"></script>
-  <script src="./config.js"></script>
-  <script src="./app.js"></script>
 </body>
 </html>
