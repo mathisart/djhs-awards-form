@@ -58,14 +58,22 @@ function buildFilenameFromRows(rows){
 
 /* ========= 司儀稿：前端 PDF ========= */
 function ensureHtml2pdf(){
-  return new Promise((resolve)=>{
+  return new Promise((resolve, reject)=>{
     if (window.html2pdf) return resolve();
+
     const s = document.createElement("script");
     s.src   = "https://cdn.jsdelivr.net/npm/html2pdf.js@0.9.3/dist/html2pdf.bundle.min.js";
-    s.onload= () => resolve();
+    s.onload  = () => resolve();
+    s.onerror = () => reject(new Error("html2pdf 載入失敗"));
     document.head.appendChild(s);
+
+    // 10 秒超時保護
+    setTimeout(()=>{
+      if (!window.html2pdf) reject(new Error("html2pdf 載入逾時"));
+    }, 10000);
   });
 }
+
 async function exportEmceePdf(html, filename){
   await ensureHtml2pdf();
   const box = document.createElement("div");
@@ -133,7 +141,16 @@ function openPreviewModal(options){
 
   // 清事件
   openDocBtn.onclick = null;
-  openPdfBtn.onclick = null;
+  openPdfBtn.onclick = async () => {
+  try{
+    const htmlForPdf = html || `<div style="padding:12px">${(text||"").replace(/\n/g,"<br>")}</div>`;
+    console.log("[司儀稿匯出 PDF] filename:", filename, "html length:", (htmlForPdf||"").length);
+    await exportEmceePdf(htmlForPdf, filename);
+  }catch(e){
+    console.error(e);
+    toast("匯出 PDF 失敗，請稍後再試。");
+  }
+};
 
   if (type === "emcee"){
     // 司儀稿：openDoc=複製文字；openPdf=前端PDF
