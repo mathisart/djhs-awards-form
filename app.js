@@ -338,47 +338,65 @@ btnAward.onclick = ()=>{
   openPreviewModal({ type:"award", rows:sel, html });
 };
 
-/* ========= 單一徽章：後端連線檢查 ========= */
-async function pingBackend(){
+/* ========= 單一徽章：後端連線檢查（加強版） ========= */
+async function pingBackend() {
   if (!connBadge) return;
   connBadge.classList.remove("success");
   connBadge.textContent = "後端連線狀態檢查中…";
 
-  let ok = false;
-  try {
-    // 1) JSON
-    try{
-      const r = await fetch(WEB_APP_URL, {
-        method:"POST",
-        headers:{ "Content-Type":"application/json" },
-        body: JSON.stringify({ action:"ping" })
-      });
-      const j = await r.json().catch(()=>null);
-      ok = j && (j.ok || j.status === "success" || j.status === "ok");
-    }catch{}
+  // 1) 未設定
+  if (!WEB_APP_URL || !/^https?:\/\//i.test(WEB_APP_URL)) {
+    connBadge.textContent = "未設定後端網址";
+    connBadge.classList.remove("success");
+    return;
+  }
 
-    // 2) form-urlencoded
-    if(!ok){
-      try{
+  // 小工具：加上逾時
+  const withTimeout = (p, ms=5000) =>
+    Promise.race([ p, new Promise((_,rej)=>setTimeout(()=>rej(new Error("timeout")), ms)) ]);
+
+  let ok = false;
+
+  try {
+    // 2) 第一招：GET + no-cors（只要能連上就視為成功）
+    try {
+      const url = WEB_APP_URL + (WEB_APP_URL.includes("?") ? "&" : "?") + "_t=" + Date.now();
+      await withTimeout(fetch(url, { method:"GET", mode:"no-cors", cache:"no-store" }), 5000);
+      ok = true; // opaque 也會走到這裡 → 視為 OK
+    } catch (_) {}
+
+    // 3) 若還是不 OK，再試 POST(JSON)
+    if (!ok) {
+      try {
+        const r = await withTimeout(fetch(WEB_APP_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "ping", _t: Date.now() })
+        }), 5000);
+        const j = await r.json().catch(()=>null);
+        ok = j && (j.ok || j.status === "success" || j.status === "ok");
+      } catch (_) {}
+    }
+
+    // 4) 再不行，試 POST(form)
+    if (!ok) {
+      try {
         const form = new URLSearchParams();
-        form.set("action","ping");
-        const r2 = await fetch(WEB_APP_URL, { method:"POST", body:form });
+        form.set("action", "ping");
+        form.set("_t", String(Date.now()));
+        const r2 = await withTimeout(fetch(WEB_APP_URL, { method: "POST", body: form }), 5000);
         const j2 = await r2.json().catch(()=>null);
         ok = j2 && (j2.ok || j2.status === "success" || j2.status === "ok");
-      }catch{}
+      } catch (_) {}
     }
+  } catch (_) {
+    ok = false;
+  }
 
-    // 3) no-cors GET（保底）
-    if(!ok){
-      await fetch(WEB_APP_URL, { method:"GET", mode:"no-cors" });
-      ok = true;
-    }
-  }catch{}
-
-  if (ok){
+  if (ok) {
     connBadge.textContent = "後端連線成功";
-    connBadge.classList.add("success");
-  }else{
+    connBadge.classList.add("success"); // 綠底白字
+  } else {
     connBadge.textContent = "後端連線失敗";
     connBadge.classList.remove("success");
   }
