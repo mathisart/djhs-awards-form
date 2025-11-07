@@ -1,574 +1,170 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>學生獎懲報表與文件自動化系統</title>
-    <!-- 載入 Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- 載入 Lucide Icons -->
-    <script src="https://unpkg.com/lucide@latest"></script>
-    <!-- 載入 html2pdf.js 用於生成 PDF -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" xintegrity="sha512-ZqB7gVlGzJ/3g6yT0mN7b3zM9+Zk3l2r09fC05yF0J5v2n7j2jR6u/r5L3z6p4d7Gg==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-    <style>
-        body {
-            font-family: 'Inter', 'Noto Sans TC', sans-serif;
-            background-color: #f7f9fb;
-        }
-        .scrollable-content::-webkit-scrollbar { width: 8px; }
-        .scrollable-content::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 10px; }
-        .scrollable-content::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
-        .scrollable-content::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
-    </style>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>獲獎名單填報與文件自動產出系統</title>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <style>
+    :root{
+      --bg:#f5f7fb; --card:#fff; --border:#e6e8ef; --muted:#6b7280; --text:#0f172a;
+      --blue:#1e3a8a; --blue-weak:#eef2ff; --btn:#64748b; --btn-disabled:#9aa3af;
+      --accent:#3b82f6; --accent-weak:#dbeafe; --danger:#ef4444;
+      --radius:14px; --shadow:0 8px 24px rgba(15,23,42,.06);
+    }
+    *{box-sizing:border-box}
+    html,body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Microsoft JhengHei",Segoe UI,Roboto,Helvetica,Arial,sans-serif}
+    .wrap{max-width:1160px;margin:24px auto;padding:0 16px}
+    .top{background:#fff;border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:18px 20px;margin-bottom:16px}
+    .title{display:flex;gap:10px;align-items:center;font-weight:800;color:var(--blue);font-size:20px;margin:0}
+    .subtitle{display:flex;justify-content:space-between;gap:12px;margin-top:8px;color:var(--muted);font-size:13px}
+    .subtitle .warn{color:var(--danger)}
+    .grid{display:grid;grid-template-columns:1fr;gap:16px}
+    @media(min-width:980px){ .grid{grid-template-columns:420px 1fr} }
+    .card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden}
+    .card h3{margin:0;padding:16px 16px 8px;font-size:18px}
+    .card .pad{padding:16px}
+    label{display:block;font-size:12px;color:var(--muted);margin:10px 0 6px}
+    input,select,textarea{width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:#fff}
+    textarea{min-height:92px;resize:vertical}
+    .row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    .btn{appearance:none;border:0;border-radius:10px;padding:12px 16px;font-weight:700;cursor:pointer}
+    .btn-primary{background:var(--accent);color:#fff}
+    .btn:disabled{cursor:not-allowed;opacity:.75}
+    .btn-wide{width:100%}
+    .hint{font-size:12px;color:var(--muted);margin-top:6px}
+    .rightHead{display:flex;justify-content:space-between;align-items:flex-end;padding:16px}
+    .count{font-size:14px;color:#334155}
+    .count b{font-size:28px;color:#111827;margin:0 6px}
+    .status{font-size:12px;color:var(--muted)}
+    .actions{display:flex;gap:10px;flex-wrap:wrap;padding:0 16px 12px}
+    .btn-gray{background:#e5e7eb;color:#374151}
+    .btn-gray:disabled{background:#e5e7eb;color:var(--btn-disabled)}
+    .tableWrap{padding:0 16px 16px}
+    .tbl{border-collapse:collapse;width:100%;min-width:760px;border:1px solid var(--border);border-radius:12px;overflow:hidden}
+    .tbl th,.tbl td{padding:10px 12px;border-bottom:1px solid var(--border);text-align:left;font-size:14px;background:#fff}
+    .tbl th{background:var(--blue-weak);font-weight:700}
+    .empty{padding:28px 12px;text-align:center;color:var(--muted)}
+    .toolRow{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:8px 16px}
+    .mono{font-family:ui-monospace,Menlo,Consolas,monospace}
+    .backdrop{position:fixed;inset:0;background:rgba(0,0,0,.35);display:none;align-items:center;justify-content:center;padding:16px}
+    .modal{width:min(880px,96vw);background:#fff;border-radius:16px;border:1px solid var(--border);box-shadow:var(--shadow);overflow:hidden}
+    .modal header{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-bottom:1px solid var(--border)}
+    .modal .body{padding:16px;max-height:70vh;overflow:auto}
+    .modal .foot{padding:12px 16px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
+  </style>
 </head>
 <body>
-
-<div id="app" class="min-h-screen p-4 sm:p-8">
-    <div class="max-w-7xl mx-auto">
-
-        <!-- 標題與 GAS 連結提示 -->
-        <header class="mb-8 p-4 bg-white shadow-lg rounded-xl">
-            <h1 class="text-3xl font-extrabold text-blue-800 mb-2 flex items-center">
-                <i data-lucide="award" class="w-8 h-8 mr-3"></i>
-                學生獎懲報表與文件自動化系統
-            </h1>
-            <div id="gas-status-message" class="text-sm text-red-600 font-semibold p-2 bg-red-100 rounded-lg flex items-center">
-                <i data-lucide="alert-triangle" class="w-5 h-5 mr-2"></i>
-                連線失敗，請檢查 Apps Script 部署狀態/權限。
-            </div>
-        </header>
-
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-
-            <!-- 左側：填報表單 -->
-            <div class="lg:col-span-1">
-                <div class="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
-                    <h2 class="text-2xl font-bold text-gray-700 mb-6">新增獲獎同學</h2>
-
-                    <form id="award-form" class="space-y-4">
-                        <!-- 班級 -->
-                        <div>
-                            <label for="class" class="block text-sm font-medium text-gray-700">班級</label>
-                            <input type="text" id="class" name="class" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border focus:border-blue-500 focus:ring-blue-500" placeholder="例如：701">
-                        </div>
-                        
-                        <!-- 座號 / 姓名 -->
-                        <div class="flex space-x-4">
-                            <div class="flex-1">
-                                <label for="seatNo" class="block text-sm font-medium text-gray-700">座號</label>
-                                <input type="number" id="seatNo" name="seatNo" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border focus:border-blue-500 focus:ring-blue-500" placeholder="例如：15">
-                            </div>
-                            <div class="flex-1">
-                                <label for="name" class="block text-sm font-medium text-gray-700">姓名</label>
-                                <input type="text" id="name" name="name" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border focus:border-blue-500 focus:ring-blue-500" placeholder="例如：王小明">
-                            </div>
-                        </div>
-
-                        <!-- 發生日期 -->
-                        <div>
-                            <label for="eventDate" class="block text-sm font-medium text-gray-700">發生日期</label>
-                            <input type="date" id="eventDate" name="eventDate" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border focus:border-blue-500 focus:ring-blue-500">
-                        </div>
-
-                        <!-- 得獎原因 -->
-                        <div>
-                            <label for="reason" class="block text-sm font-medium text-gray-700">得獎原因 (事由)</label>
-                            <textarea id="reason" name="reason" rows="3" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border focus:border-blue-500 focus:ring-blue-500" placeholder="例如：參加全國語文競賽榮獲國語朗讀特優"></textarea>
-                        </div>
-                        
-                        <!-- 敘獎內容 -->
-                        <div>
-                            <label for="reward" class="block text-sm font-medium text-gray-700">獎懲種類 (敘獎內容)</label>
-                            <select id="reward" name="reward" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border focus:border-blue-500 focus:ring-blue-500">
-                                <option value="">請選擇</option>
-                                <option value="嘉獎一次">嘉獎一次</option>
-                                <option value="嘉獎二次">嘉獎二次</option>
-                                <option value="小功一次">小功一次</option>
-                                <option value="小功二次">小功二次</option>
-                                <option value="無敘獎(僅表揚)">無敘獎(僅表揚)</option>
-                            </select>
-                        </div>
-
-                        <button type="submit" id="submit-btn" class="w-full flex justify-center items-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition duration-150 ease-in-out">
-                            <i data-lucide="plus-circle" class="w-5 h-5 mr-2"></i>
-                            加入名單 (儲存至 Google Sheet)
-                        </button>
-                    </form>
-                </div>
-            </div>
-
-            <!-- 中間：已填報名單列表 -->
-            <div class="lg:col-span-2">
-                <div class="bg-white p-6 rounded-xl shadow-lg border border-gray-100 h-full">
-                    <h2 class="text-2xl font-bold text-gray-700 mb-6 flex justify-between items-center">
-                        已填報名單 (共 <span id="award-count" class="text-blue-600">0</span> 筆)
-                    </h2>
-
-                    <div id="award-list" class="space-y-4 max-h-[400px] overflow-y-auto pr-2 scrollable-content">
-                        <p id="loading-message" class="text-center text-gray-500">從 Google Sheet 載入名單中...</p>
-                    </div>
-                    
-                    <hr class="my-6">
-                    
-                    <h3 class="text-xl font-bold text-gray-700 mb-4">文件產出</h3>
-                    <div class="flex space-x-4">
-                        <button id="generate-script-btn" class="flex-1 py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-150 ease-in-out disabled:bg-gray-400" disabled>
-                            <i data-lucide="mic" class="w-5 h-5 inline-block mr-2"></i>
-                            一件產出司儀稿
-                        </button>
-                        <button id="generate-notice-btn" class="flex-1 py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition duration-150 ease-in-out disabled:bg-gray-400" disabled>
-                            <i data-lucide="file-text" class="w-5 h-5 inline-block mr-2"></i>
-                            一件產出敘獎公告 (建議表格式)
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
+<div class="wrap">
+  <div class="top">
+    <h2 class="title">👤 獲獎名單填報與文件自動產出系統</h2>
+    <div class="subtitle">
+      <div id="uid">👤 使用者 ID（用於共享/追蹤）：anonymous</div>
+      <div class="warn" id="topWarn">後端連線檢查中…</div>
     </div>
+  </div>
+
+  <div class="grid">
+    <!-- 左側 -->
+    <div class="card">
+      <h3>新增獲獎同學</h3>
+      <div class="pad">
+        <form id="form">
+          <label>班級</label>
+          <input name="班級" placeholder="例如：701" required/>
+          <div class="row">
+            <div>
+              <label>座號</label>
+              <input name="座號" type="number" placeholder="例如：15"/>
+            </div>
+            <div>
+              <label>姓名</label>
+              <input name="姓名" placeholder="例如：王小明" required/>
+            </div>
+          </div>
+          <label>發生日期</label>
+          <input name="發生日期" type="date" required/>
+          <label>得獎原因（事由）</label>
+          <textarea name="事由" placeholder="例如：參加全國語文競賽榮獲特優" required></textarea>
+          <label>獎懲種類（敘獎內容）</label>
+          <select name="獎懲種類" id="rewardSelect" required>
+            <option value="" disabled selected>請選擇</option>
+            <option>嘉獎</option>
+            <option>小功</option>
+            <option>大功</option>
+            <option>警告</option>
+            <option>小過</option>
+            <option>大過</option>
+            <option>其他</option>
+          </select>
+          <label>法條依據</label>
+          <input name="法條依據" id="basisInput" placeholder="自動帶入，可覆寫"/>
+          <div class="hint">未填時會依「獎懲種類」自動填入常用法條</div>
+          <button type="submit" class="btn btn-primary btn-wide" style="margin-top:14px">加入名單</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- 右側 -->
+    <div class="card">
+      <div class="rightHead">
+        <h3>已填報名單</h3>
+        <div class="count">（共 <b id="count">0</b> 筆）</div>
+      </div>
+
+      <div class="toolRow">
+        <input id="q" placeholder="搜尋：班級 / 姓名 / 事由 / 種類" style="flex:1; padding:8px 12px; border:1px solid var(--border); border-radius:10px; background:#fff"/>
+        <button id="refreshBtn" class="btn" style="background:#e5e7eb">重新整理</button>
+        <button id="toggleAllBtn" class="btn" style="background:#e5e7eb">全選/取消</button>
+      </div>
+
+      <div class="pad" style="padding-top:0">
+        <div class="status" id="backendStatus">後端未初始化。</div>
+        <div style="margin:10px 0 14px; font-weight:700">文件產出</div>
+        <div class="actions">
+          <button id="btnEmcee" class="btn btn-gray" disabled>🎙️ 一鍵產出司儀稿</button>
+          <button id="btnAward" class="btn btn-gray" disabled>🧾 一鍵產出敘獎公告</button>
+        </div>
+      </div>
+
+      <div class="tableWrap">
+        <table class="tbl">
+          <thead>
+            <tr>
+              <th style="width:42px">選</th>
+              <th>編號</th><th>班級</th><th>座號</th><th>姓名</th>
+              <th>日期</th><th>事由</th><th>獎懲種類</th><th>法條依據</th><th>建立時間</th>
+            </tr>
+          </thead>
+          <tbody id="tbody">
+            <tr><td colspan="10" class="empty">尚無資料</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
 </div>
 
-<!-- Modal for Document Display -->
-<div id="document-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 hidden items-center justify-center p-4 z-50">
-    <div class="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col">
-        <div class="p-6 border-b flex justify-between items-center">
-            <h2 id="modal-title" class="text-2xl font-bold text-gray-800">文件生成</h2>
-            <button id="close-modal-btn" class="text-gray-500 hover:text-gray-700">
-                <i data-lucide="x" class="w-6 h-6"></i>
-            </button>
-        </div>
-        
-        <div class="p-6 flex-grow overflow-hidden">
-            <div class="h-full bg-gray-50 p-4 rounded-lg overflow-y-auto scrollable-content border border-gray-200">
-                <div id="document-content" class="text-sm leading-relaxed text-gray-800"></div>
-            </div>
-        </div>
-
-        <div class="p-4 border-t flex justify-between">
-            <button id="generate-pdf-btn" class="flex items-center py-2 px-4 rounded-md text-sm font-medium text-white bg-red-600 hover:bg-red-700 transition duration-150 ease-in-out">
-                <i data-lucide="file-text" class="w-5 h-5 mr-2"></i>
-                產生 PDF 文件
-            </button>
-            <button id="copy-document-btn" class="flex items-center py-2 px-4 rounded-md text-sm font-medium text-white bg-teal-600 hover:bg-teal-700 transition duration-150 ease-in-out">
-                <i data-lucide="clipboard" class="w-5 h-5 mr-2"></i>
-                複製文件內容 (純文字)
-            </button>
-        </div>
+<!-- Modal -->
+<div id="backdrop" class="backdrop">
+  <div class="modal">
+    <header>
+      <div id="modalTitle" style="font-weight:800">輸出</div>
+      <button id="closeModal" class="btn" style="background:#e5e7eb">關閉</button>
+    </header>
+    <div id="docBody" class="body"></div>
+    <div class="foot">
+      <button id="copyBtn" class="btn" style="background:#e5e7eb;display:none">複製文字</button>
+      <button id="openDocBtn" class="btn" style="background:#e5e7eb;display:none">開啟雲端試算表</button>
+      <button id="openPdfBtn" class="btn btn-primary" style="display:none">開啟 PDF</button>
+      <button id="downloadPdfBtn" class="btn btn-primary" style="display:none">轉成 PDF</button>
     </div>
+  </div>
 </div>
 
-<script>
-    // 🚨🚨🚨 請將此處替換為您部署的 Google Apps Script Web App 網址 🚨🚨🚨
-    const GAS_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbzRJTy0Vksb2l7vnBVKLN5Ln8ZawLZp7SPV--SSY6UAqJZzW7WNIFjEmgdVUbWKT7H7/exec'; 
-
-    let awardees = []; // 儲存從 Google Sheet 讀取到的名單
-
-    // --- 輔助函式與 DOM 元素存取 ---
-    const form = document.getElementById('award-form');
-    const submitBtn = document.getElementById('submit-btn');
-    const awardListContainer = document.getElementById('award-list');
-    const awardCountSpan = document.getElementById('award-count');
-    const loadingMessage = document.getElementById('loading-message');
-    const generateScriptBtn = document.getElementById('generate-script-btn');
-    const generateNoticeBtn = document.getElementById('generate-notice-btn');
-    const gasStatusMessage = document.getElementById('gas-status-message');
-
-    // Modal 元素
-    const modal = document.getElementById('document-modal');
-    const modalTitle = document.getElementById('modal-title');
-    const documentContent = document.getElementById('document-content');
-    const closeModalBtn = document.getElementById('close-modal-btn');
-    const copyDocumentBtn = document.getElementById('copy-document-btn');
-    const generatePdfBtn = document.getElementById('generate-pdf-btn');
-
-    /**
-     * 根據獎懲種類自動判斷法條依據。
-     * 這裡的邏輯必須和 Code.gs 中的邏輯保持一致
-     * @param {string} reward - 獎懲種類
-     * @returns {string} 法條依據
-     */
-    const getBasis = (reward) => {
-        // 🚨 前端增加空值檢查
-        if (typeof reward !== 'string' || !reward) {
-            return '無';
-        }
-
-        // 邏輯已更新：包含 '嘉獎' -> 嘉獎法條; 包含 '小功' -> 小功法條
-        if (reward.includes('嘉獎')) {
-            return '第四條第十六款';
-        } else if (reward.includes('小功')) { 
-            return '第五條第十二款';
-        } else {
-            return '無';
-        }
-    };
-
-    // 格式化發生日期為 月/日
-    const formatEventDate = (dateString) => {
-        if (!dateString) return '';
-        try {
-            // 假設輸入是 YYYY-MM-DD
-            const parts = dateString.split('-');
-            if (parts.length === 3) {
-                const month = parts[1];
-                const day = parts[2];
-                return `${month} / ${day}`;
-            }
-        } catch (e) {
-            console.error('Date format error:', e);
-            return '';
-        }
-    };
-    
-    // --- 核心資料讀取與渲染 ---
-
-    // 讀取名單
-    const fetchAwardees = async () => {
-        loadingMessage.textContent = '從 Google Sheet 載入名單中...';
-        
-        if (GAS_WEB_APP_URL.includes('YOUR_DEPLOYED_GAS_WEB_APP_URL_HERE')) {
-            loadingMessage.textContent = '❌ 請先部署 GAS Web App 並更新 GAS_WEB_APP_URL。';
-            return;
-        }
-
-        try {
-            const response = await fetch(GAS_WEB_APP_URL, {
-                method: 'GET',
-                mode: 'cors'
-            });
-            
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-
-            const data = await response.json();
-            
-            // 檢查 GAS 後端是否回傳錯誤訊息
-            if (data.status === 'error') {
-                 throw new Error(data.message || 'GAS 後端回傳錯誤。');
-            }
-            
-            // 假設 data.data 是一個包含名單物件的陣列
-            awardees = data.data || [];
-            
-            // 依班級/座號排序 (GAS 端通常已經排好，但前端再排一次確保)
-            awardees.sort((a, b) => {
-                if (a.class < b.class) return -1;
-                if (a.class > b.class) return 1;
-                return (a.seatNo || 0) - (b.seatNo || 0);
-            });
-
-            gasStatusMessage.className = 'text-sm text-green-600 font-semibold p-2 bg-green-100 rounded-lg flex items-center';
-            gasStatusMessage.innerHTML = '<i data-lucide="check-circle" class="w-5 h-5 mr-2"></i> 狀態：已成功連線至 Google Sheets。';
-
-        } catch (error) {
-            console.error("Error fetching awardees:", error);
-            // 檢查是否為 CORS 錯誤 (最常見的 GAS 權限問題)
-            let errorMessage = error.message;
-            if (errorMessage.includes('Failed to fetch') || errorMessage.includes('HTTP error! status: 401')) {
-                 errorMessage = '請確認 Apps Script 部署權限是否設為「任何人可存取」';
-            } else if (errorMessage.includes('GAS 後端回傳錯誤')) {
-                 errorMessage = '請檢查 Google Sheets 中的工作表名稱是否為「獲獎名單」';
-            }
-            
-            loadingMessage.textContent = `❌ 載入名單失敗: ${errorMessage}`;
-            gasStatusMessage.className = 'text-sm text-red-600 font-semibold p-2 bg-red-100 rounded-lg flex items-center';
-            gasStatusMessage.innerHTML = '<i data-lucide="alert-triangle" class="w-5 h-5 mr-2"></i> 連線失敗，請檢查 Apps Script 部署狀態/權限。';
-            awardees = [];
-        } finally {
-            renderAwardList();
-        }
-    };
-
-
-    // 渲染名單列表
-    const renderAwardList = () => {
-        awardListContainer.innerHTML = '';
-        awardCountSpan.textContent = awardees.length;
-
-        // 按鈕啟用條件: 有資料 AND 成功連線
-        const isReady = GAS_WEB_APP_URL.includes('https'); // 假設只要填了網址就嘗試啟用
-        generateScriptBtn.disabled = awardees.length === 0 || !isReady;
-        generateNoticeBtn.disabled = awardees.length === 0 || !isReady;
-        
-        if (awardees.length === 0) {
-            awardListContainer.innerHTML = '<p class="text-center text-gray-500 p-4 bg-gray-50 rounded-lg">尚無獲獎名單，請使用上方表單新增。</p>';
-        }
-
-        awardees.forEach(item => {
-            // 確保 item.reward 存在，否則傳入空字串
-            const basisText = getBasis(item.reward || '');
-            const formattedDate = formatEventDate(item.eventDate);
-
-            const div = document.createElement('div');
-            div.className = 'bg-gray-50 p-4 rounded-lg shadow-sm flex justify-between items-center transition hover:bg-gray-100';
-            div.innerHTML = `
-                <div>
-                    <p class="text-base font-semibold text-blue-700">${item.class} ${item.seatNo} 號 ${item.name}</p>
-                    <p class="text-xs text-gray-600 mt-1">
-                        <span class="inline-block bg-blue-100 text-blue-800 text-xs font-medium px-2.5 py-0.5 rounded-full">${item.reward || '無獎懲'}</span>
-                        <span class="inline-block bg-gray-200 text-gray-600 text-xs font-medium px-2.5 py-0.5 rounded-full">${basisText}</span>
-                        <span class="inline-block bg-gray-200 text-gray-600 text-xs font-medium px-2.5 py-0.5 rounded-full">${formattedDate}</span>
-                        ${item.reason}
-                    </p>
-                </div>
-                <!-- 刪除功能需要 GAS 複雜處理，暫時移除按鈕 -->
-            `;
-            awardListContainer.appendChild(div);
-        });
-        lucide.createIcons();
-    };
-
-    // --- 表單提交與資料寫入 (POST 到 GAS) ---
-    form.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        
-        if (GAS_WEB_APP_URL.includes('YOUR_DEPLOYED_GAS_WEB_APP_URL_HERE')) {
-            showTemporaryMessage('請先部署 GAS Web App 並更新 GAS_WEB_APP_URL！', 'error');
-            return;
-        }
-        
-        submitBtn.disabled = true;
-        submitBtn.textContent = '儲存中...';
-
-        const formData = new FormData(form);
-        const rewardValue = formData.get('reward');
-
-        const newAward = {
-            class: formData.get('class').trim(),
-            seatNo: parseInt(formData.get('seatNo'), 10),
-            name: formData.get('name').trim(),
-            eventDate: formData.get('eventDate'),
-            reason: formData.get('reason').trim(),
-            reward: rewardValue,
-            basis: getBasis(rewardValue) // 前端計算法條
-        };
-        
-        try {
-            const response = await fetch(GAS_WEB_APP_URL, {
-                method: 'POST',
-                mode: 'cors',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(newAward)
-            });
-
-            const result = await response.json();
-
-            if (response.ok && result.status === 'success') {
-                // 替換成自定義 Modal 提示 (避免 alert)
-                showTemporaryMessage('名單已成功儲存到 Google Sheets！', 'success');
-                form.reset();
-                // 重新讀取名單以更新列表
-                await fetchAwardees(); 
-            } else {
-                throw new Error(result.message || '儲存失敗，請檢查 GAS 程式碼。');
-            }
-
-        } catch (error) {
-            console.error("Error submitting data: ", error);
-            showTemporaryMessage(`新增名單失敗: ${error.message}`, 'error');
-        } finally {
-            submitBtn.disabled = false;
-            submitBtn.innerHTML = '<i data-lucide="plus-circle" class="w-5 h-5 mr-2"></i>加入名單 (儲存至 Google Sheet)';
-            lucide.createIcons();
-        }
-    });
-    
-    // 臨時訊息顯示 (取代 alert)
-    const showTemporaryMessage = (message, type) => {
-        const tempDiv = document.createElement('div');
-        tempDiv.className = `fixed top-4 right-4 p-4 rounded-lg shadow-xl text-white font-bold transition-opacity duration-300 z-50 ${type === 'success' ? 'bg-green-600' : 'bg-red-600'}`;
-        tempDiv.textContent = message;
-        document.body.appendChild(tempDiv);
-        setTimeout(() => {
-            tempDiv.style.opacity = '0';
-            setTimeout(() => tempDiv.remove(), 300);
-        }, 3000);
-    };
-
-
-    // --- 文件自動生成邏輯 (核心) ---
-    
-    // 司儀稿生成 (輸出 HTML 格式)
-    const generateEmceeScript = () => {
-        // 確保使用最新的 awardees 資料
-        let script = "<h2>🏆 頒獎典禮司儀稿 (彙整草稿)</h2><p style='color: #ef4444;'>請手動選取內容複製，貼至 Google 文件以保留格式。</p><hr class='my-4 border-gray-300'>";
-        script += "<p style='font-style: italic; color: #4b5563;'>--- 典禮開始 | 司儀口吻 ---</p><br>";
-        
-        awardees.forEach((item, index) => {
-            const template = `<div style="margin-bottom: 20px; padding: 15px; border-left: 5px solid #3b82f6; background-color: #eff6ff; border-radius: 5px;">` +
-                             `<p style="font-size: 1.2em; line-height: 1.6; font-weight: 700;">` +
-                             `<b>${item.class} 班 ${item.name}</b>` +
-                             ` ${item.reason}，` + 
-                             `恭請校長頒獎！` +
-                             `</p>` +
-                             `<p style="font-style: italic; color: #4b5563; margin-top: 5px; font-size: 0.9em;">(${index + 1}. 請慢速、清晰地宣讀)</p>` +
-                             `</div>`;
-            script += template;
-        });
-
-        script += "<p style='font-style: italic; color: #4b5563;'>--- 頒獎環節結束，請掌聲鼓勵所有獲獎同學！ ---</p>";
-        return script;
-    };
-
-    // 敘獎通知生成 (輸出 HTML 表格格式 - 依據使用者提供的圖表)
-    const generateCommendationNotice = () => {
-        const tableCellStyle = "border: 1px solid black; padding: 8px; vertical-align: middle; white-space: normal;";
-        
-        const currentDate = new Date();
-        const year = currentDate.getFullYear() - 1911;
-        const month = (currentDate.getMonth() + 1).toString().padStart(2, '0');
-        const day = currentDate.getDate().toString().padStart(2, '0');
-        const dateHeader = `中華民國 ${year} 年 ${month} 月 ${day} 日`;
-
-        let notice = `<div id="commendation-notice-content" style="padding: 20px; font-family: 'Noto Sans TC', sans-serif; max-width: 100%; overflow-x: auto;">
-            <p style='color: #ef4444; margin-bottom: 20px;'>請手動選取內容複製，貼至 Google 文件以保留格式。</p>
-            <h2 style="font-size: 1.5em; font-weight: bold; text-align: center; margin-bottom: 10px;">臺中市立大甲國民中學學生獎懲建議表(公告)</h2>
-            <div style="text-align: right; margin-bottom: 15px; font-size: 0.9em;">${dateHeader} (請修改為公告日期)</div>
-
-            <table style="width: 100%; border-collapse: collapse; text-align: center; font-size: 0.9em; border: 2px solid black;">
-                <thead>
-                    <tr style="background-color: #f0f0f0; font-weight: bold; height: 50px;">
-                        <td style="${tableCellStyle} width: 7%;">班級</td>
-                        <td style="${tableCellStyle} width: 7%;">座號</td>
-                        <td style="${tableCellStyle} width: 10%;">姓 名</td>
-                        <td style="${tableCellStyle} width: 5%;">發生日期<br>月</td>
-                        <td style="${tableCellStyle} width: 5%;">發生日期<br>日</td>
-                        <td style="${tableCellStyle} width: 35%;">事 由</td>
-                        <td style="${tableCellStyle} width: 15%;">依據獎懲法<br>條、款</td>
-                        <td style="${tableCellStyle} width: 12%;">獎懲種類</td>
-                        <td style="${tableCellStyle} width: 9%;">會簽：有關導師</td>
-                    </tr>
-                </thead>
-                <tbody>`;
-
-        if (awardees.length === 0) {
-            notice += `<tr><td style="${tableCellStyle} height: 40px;" colspan="9">無資料可供生成。</td></tr>`; 
-        } else {
-            awardees.forEach(item => {
-                const formattedDate = formatEventDate(item.eventDate);
-                const [itemMonth, itemDay] = formattedDate ? formattedDate.split(' / ') : ['', ''];
-                // 確保 item.reward 存在，否則傳入空字串
-                const basisText = getBasis(item.reward || '');
-
-                notice += `<tr style="height: 40px;">
-                    <td style="${tableCellStyle}">${item.class}</td>
-                    <td style="${tableCellStyle}">${item.seatNo}</td>
-                    <td style="${tableCellStyle}">${item.name}</td>
-                    <td style="${tableCellStyle} text-align: center;">${itemMonth || ''}</td>
-                    <td style="${tableCellStyle} text-align: center;">${itemDay || ''}</td>
-                    <td style="${tableCellStyle} text-align: left; padding-left: 10px;">${item.reason}</td>
-                    <td style="${tableCellStyle}">${basisText}</td>
-                    <td style="${tableCellStyle} font-weight: bold;">${item.reward}</td>
-                    <td style="${tableCellStyle}"></td> <!-- 會簽: 留空 -->
-                </tr>`;
-            });
-        }
-
-        notice += `</tbody></table>
-        
-        <div style="margin-top: 30px; font-size: 0.9em;">
-            <p style="text-align: center; margin-bottom: 15px; font-weight: bold; padding: 10px 0; border-top: 1px solid black; border-bottom: 1px solid black;">
-                導師會簽後請轉知學生與家長，如有問題請洽學務處生活教育組。
-            </p>
-            <table style="width: 100%; border: none; border-collapse: collapse; text-align: center;">
-                <tr>
-                    <td style="width: 25%; border: none; padding: 20px 0;"><b>簽報人：</b></td>
-                    <td style="width: 25%; border: none;"><b>生活教育組長：</b></td>
-                    <td style="width: 25%; border: none;"><b>學務主任：</b></td>
-                    <td style="width: 25%; border: none;"><b>校 長：</b></td>
-                </tr>
-            </table>
-        </div>
-        </div>`;
-        
-        return notice;
-    };
-    
-    // 顯示 Modal
-    const showModal = (title, content) => {
-        modalTitle.textContent = title;
-        documentContent.innerHTML = content; 
-        modal.classList.remove('hidden');
-        modal.classList.add('flex');
-        lucide.createIcons();
-    };
-
-    // 隱藏 Modal
-    const hideModal = () => {
-        modal.classList.add('hidden');
-        modal.classList.remove('flex');
-    };
-    
-    // PDF 生成函式
-    const generatePDF = (filename) => {
-        const element = document.getElementById('document-content');
-        const printContent = document.createElement('div');
-        printContent.innerHTML = element.innerHTML;
-        
-        let targetElement = printContent.querySelector('#commendation-notice-content');
-        if (!targetElement) { targetElement = printContent; }
-        
-        const prompt = targetElement.querySelector('p[style*="color: #ef4444"]');
-        if (prompt) prompt.remove();
-
-        const opt = {
-            margin: 10,
-            filename: filename,
-            image: { type: 'jpeg', quality: 0.98 },
-            html2canvas: { scale: 2, logging: false, allowTaint: true, useCORS: false },
-            jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-        };
-
-        html2pdf().set(opt).from(targetElement).save();
-    };
-
-    // 複製文字功能
-    const copyToClipboard = () => {
-        const pureText = documentContent.innerText || documentContent.textContent;
-        const textarea = document.createElement('textarea');
-        textarea.value = pureText;
-        textarea.style.position = 'fixed';
-        textarea.style.opacity = 0;
-        document.body.appendChild(textarea);
-        textarea.select();
-        try {
-            document.execCommand('copy');
-            copyDocumentBtn.textContent = '已複製!';
-            setTimeout(() => {
-                copyDocumentBtn.innerHTML = '<i data-lucide="clipboard" class="w-5 h-5 mr-2"></i>複製文件內容 (純文字)';
-                lucide.createIcons();
-            }, 1500);
-        } catch (err) {
-            console.error('Fallback: Copy failed', err);
-        }
-        document.body.removeChild(textarea);
-    };
-
-    // --- 事件監聽與初始化 ---
-    generateScriptBtn.addEventListener('click', () => {
-        const script = generateEmceeScript();
-        showModal('自動生成：司儀稿', script);
-    });
-
-    generateNoticeBtn.addEventListener('click', () => {
-        const notice = generateCommendationNotice();
-        showModal('自動生成：敘獎公告 (建議表格式)', notice);
-    });
-    
-    closeModalBtn.addEventListener('click', hideModal);
-    copyDocumentBtn.addEventListener('click', copyToClipboard);
-    generatePdfBtn.addEventListener('click', () => {
-        const title = modalTitle.textContent.replace('自動生成：', '');
-        generatePDF(`${title}_${Date.now()}.pdf`);
-    });
-
-    window.onload = () => {
-        lucide.createIcons();
-        fetchAwardees(); // 頁面載入時從 Google Sheet 讀取資料
-    };
-
-</script>
+<script defer src="https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.1/dist/html2pdf.bundle.min.js"></script>
+<script defer src="./config.js"></script>
+<script defer src="./app.js"></script>
 </body>
 </html>
