@@ -80,21 +80,94 @@
     }
   });
 
-  // --- 司儀稿（前端產出） ---
-  $('#btnEmcee').addEventListener('click', ()=>{
-    const rows = $$('.rowchk:checked').map(chk=>{
-      const t = chk.closest('tr').children;
-      return {班級:t[2].innerText, 座號:t[3].innerText, 姓名:t[4].innerText,
-              事由:t[6].innerText, 獎懲種類:t[7].innerText, 法條依據:t[8].innerText};
-    });
-    const today = toROC(new Date());
-    let html = `<h2 style="margin:0 0 8px;">頒獎典禮司儀稿</h2><div style="color:#6b7280">${today}</div><ol style="line-height:1.8">`;
-    rows.forEach(r=>{
-      html += `<li><b>${r.班級}班 第${r.座號}號 ${r.姓名}</b> — ${r.獎懲種類}<br>事由：${r.事由}<br><span style="color:#777">法條依據：${r.法條依據||'—'}</span></li>`;
-    });
-    html+='</ol>';
-    showModal('司儀稿',html,{copy:true,frontPdf:true});
+ // ===== 司儀稿（版型：事由 + 逗號 + [班級姓名榮獲名次] 串接 + ，恭請校長頒獎。） =====
+const EMCEE_SUFFIX = '恭請校長頒獎';
+const NAME_JOINER = '、';
+
+// 事由淨化（去空白、去尾標點）
+function normalizeReasonFull(s) {
+  return String(s || '').trim().replace(/[，。．、：:；;]+$/g, '');
+}
+
+// 解析「比賽名稱」與「名次」（假設一定有「榮獲」）
+function splitByHonor(s) {
+  const raw = normalizeReasonFull(s);
+  const i = raw.indexOf('榮獲');
+  if (i <= 0) return { comp: raw, result: '' };
+  const comp = raw.slice(0, i)                 // 「榮獲」之前
+                  .replace(/^(參加|於|在)/, '') // 去除冗詞（可保留也可移除）
+                  .replace(/[，、。:：]+$/,'')
+                  .trim();
+  const result = raw.slice(i + 2)              // 「榮獲」之後
+                    .replace(/^[，、。:：]+/,'')
+                    .replace(/[，、。:：]+$/,'')
+                    .trim();
+  return { comp: comp || '未填事由', result };
+}
+
+// 名次辭典（可擴充）
+const RESULT_WHITELIST = [
+  '第一名','第二名','第三名','特優','優等','佳作',
+  '金牌','銀牌','銅牌','金質獎','銀質獎','銅質獎'
+];
+
+// 規範名次（若輸入含雜字，盡量抓出白名單中的詞）
+function normalizeResult(r) {
+  const s = String(r || '').trim();
+  // 完整匹配就用原字
+  if (RESULT_WHITELIST.includes(s)) return s;
+  // 嘗試包含匹配（例如「榮獲金質獎（國中組）」→ 抓「金質獎」）
+  for (const w of RESULT_WHITELIST) {
+    if (s.includes(w)) return w;
+  }
+  return s; // 萬一真的抓不到，就回原字
+}
+
+// 讓班級自然排序（701→702→801…）
+function classKey(c) {
+  const m = String(c || '').match(/\d+/);
+  return m ? Number(m[0]) : 9999;
+}
+
+// --- 司儀稿（同事由合併，單句版） ---
+$('#btnEmcee').addEventListener('click', () => {
+  const rows = $$('.rowchk:checked').map(chk => {
+    const t = chk.closest('tr').children;
+    return {
+      班級: t[2].innerText.trim(),
+      姓名: t[4].innerText.trim(),
+      事由: t[6].innerText.trim(),
+    };
   });
+  if (!rows.length) { toast('請至少勾選一筆'); return; }
+
+  // 以「比賽名稱（榮獲前）」分組
+  const byComp = new Map();
+  for (const r of rows) {
+    const { comp, result } = splitByHonor(r.事由);
+    const normResult = normalizeResult(result);
+    const phrase = `${r.班級}班${r.姓名}${normResult ? `榮獲${normResult}` : ''}`;
+    if (!byComp.has(comp)) byComp.set(comp, []);
+    byComp.get(comp).push({ phrase, cls: r.班級 });
+  }
+
+  // 每組依班級排序，組成一個單句： [比賽]，[A班甲同學榮獲…、B班乙同學榮獲…]，恭請校長頒獎。
+  const lines = [];
+  [...byComp.entries()].forEach(([comp, list]) => {
+    list.sort((a,b) => classKey(a.cls) - classKey(b.cls));
+    const joined = list.map(x => x.phrase).join(NAME_JOINER);
+    lines.push(`${comp}，${joined}，${EMCEE_SUFFIX}。`);
+  });
+
+  const html = `
+    <h2 style="margin:0 0 8px;">頒獎典禮司儀稿</h2>
+    <div style="line-height:1.9; margin-top:8px;">
+      ${lines.map(p => `<p style="margin:0 0 8px;">${p}</p>`).join('')}
+    </div>
+  `;
+  showModal('司儀稿（同事由合併｜單句版）', html, { copy: true, frontPdf: true });
+});
+
 
   // --- 獎懲單（後端產出） ---
   // 優先嘗試 JSON（較直覺）；若失敗（多半因預檢）→ fallback 用 URL-encoded + ids JSON 字串
