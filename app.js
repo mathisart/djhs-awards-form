@@ -29,6 +29,21 @@ const openDocBtn  = document.querySelector("#openDocBtn"); // 司儀稿=複製�
 const openPdfBtn  = document.querySelector("#openPdfBtn"); // 兩者皆為匯出 PDF
 modalClose.onclick = () => modal.classList.remove("active");
 
+// 送一筆到 GAS（用 form-urlencoded，避開 CORS 預檢）
+async function saveRowToBackend(row){
+  const form = new URLSearchParams();
+  form.set("班級", row.班級 || "");
+  form.set("座號", row.座號 || "");
+  form.set("姓名", row.姓名 || "");
+  form.set("發生日期", row.發生日期 || "");   // 注意鍵名用「發生日期」
+  form.set("事由", row.事由 || "");
+  form.set("獎懲種類", row.獎懲種類 || "");
+
+  const res = await fetch(WEB_APP_URL, { method:"POST", body:form, mode:"cors", cache:"no-store" });
+  const json = await res.json().catch(()=>null);
+  if(!json || !(json.status==="success" || json.ok)) throw new Error(json?.message || "寫入失敗");
+}
+
 /* ========= 共用：小工具 ========= */
 function toast(msg){ alert(msg); }
 
@@ -301,24 +316,39 @@ function buildAwardPreviewHTML(sel){
 }
 
 /* ========= 事件 ========= */
-btnAdd.onclick = ()=>{
+btnAdd.onclick = async ()=>{
   if(!cClass.value || !cSeat.value || !cName.value){
     toast("請先填『班級 / 座號 / 姓名』");
     return;
   }
-  rows.unshift({
+  const one = {
     id: crypto.randomUUID(),
     班級: cClass.value.trim(),
     座號: cSeat.value.trim(),
     姓名: cName.value.trim(),
+    發生日期: cDate.value.trim(),     // ← 新增，會傳到後端
     事由: cReason.value.trim(),
     成績: cRank.value.trim(),
     獎懲種類: cAward.value.trim()
-  });
+  };
+
+  // 先更新畫面
+  rows.unshift(one);
   render();
+
+  // 再寫入後端（失敗不擋前端，但會提示）
+  try{
+    await saveRowToBackend(one);
+    toast("✅ 已寫入後端");
+  }catch(e){
+    console.error(e);
+    toast("⚠️ 已加入清單，但後端寫入失敗：" + e.message);
+  }
+
   // 清空（保留班級）
   cSeat.value=""; cName.value=""; cReason.value=""; cRank.value="";
 };
+
 
 inputQ.oninput  = render;
 btnRefresh.onclick = render;
@@ -408,20 +438,7 @@ async function pingBackend() {
 }
 if (connBadge) connBadge.addEventListener("click", pingBackend);
 
-// 送一筆到 GAS（用 form-urlencoded，避開 CORS 預檢）
-async function saveRowToBackend(row){
-  const form = new URLSearchParams();
-  form.set("班級", row.班級 || "");
-  form.set("座號", row.座號 || "");
-  form.set("姓名", row.姓名 || "");
-  form.set("發生日期", row.發生日期 || "");   // 注意鍵名用「發生日期」
-  form.set("事由", row.事由 || "");
-  form.set("獎懲種類", row.獎懲種類 || "");
 
-  const res = await fetch(WEB_APP_URL, { method:"POST", body:form, mode:"cors", cache:"no-store" });
-  const json = await res.json().catch(()=>null);
-  if(!json || !(json.status==="success" || json.ok)) throw new Error(json?.message || "寫入失敗");
-}
 
 /* ========= 啟動 ========= */
 render();
