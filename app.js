@@ -57,7 +57,7 @@ function buildFilenameFromRows(rows){
   return (rows.length > 1) ? `${base}_等${rows.length}筆` : base;
 }
 
-/* ========= 司儀稿：前端 PDF（新分頁開啟） ========= */
+/* ========= 司儀稿：前端 PDF（直接下載） ========= */
 function ensureHtml2pdf(){
   return new Promise((resolve)=>{
     if (window.html2pdf) return resolve();
@@ -67,19 +67,15 @@ function ensureHtml2pdf(){
     document.head.appendChild(s);
   });
 }
-async function exportEmceePdfNewTab(html, filename){
+async function exportEmceePdfDownload(html, filename){
   await ensureHtml2pdf();
 
-  // 先開新分頁，避免被視為彈窗
-  const newWin = window.open('about:blank', '_blank');
-  if (!newWin) {
-    toast('被瀏覽器阻擋了，請允許此網頁開啟新分頁。');
-    return;
-  }
-
   const box = document.createElement("div");
-  box.style.width = "794px"; // A4 寬（約 96dpi）
+  box.style.width = "794px"; // A4 約寬（96dpi）
   box.style.padding = "16px";
+  box.style.fontFamily = "'Noto Sans TC','PingFang TC','Microsoft JhengHei',sans-serif";
+  box.style.fontSize = "14px";
+  box.style.lineHeight = "1.9";
   box.innerHTML = html;
 
   const opt = {
@@ -91,17 +87,9 @@ async function exportEmceePdfNewTab(html, filename){
   };
 
   try{
-    const worker = html2pdf().from(box).set(opt);
-    const blob   = await worker.outputPdf('blob');
-    const url    = URL.createObjectURL(blob);
-    // 讓已開啟的新分頁載入 PDF
-    newWin.location = url;
-
-    // 60 秒後釋放 URL
-    setTimeout(()=> URL.revokeObjectURL(url), 60000);
+    await html2pdf().from(box).set(opt).save(); // 直接觸發下載
   }catch(e){
     console.error(e);
-    newWin.close();
     toast('匯出 PDF 失敗，請稍後再試。');
   }
 }
@@ -112,8 +100,8 @@ async function exportEmceePdfNewTab(html, filename){
      action=create_award_doc
      rows=<JSON 字串陣列>
    回傳 JSON（容忍多種鍵）：
-     { ok:true, sheetUrl:'...', pdfUrl:'...' }
-     或 { status:'success', sheetUrl:'...', pdfUrl:'...' }
+     { ok:true, sheetUrl:'...', pdfUrl:'...', fileName:'...' }
+     或 { status:'success', sheetUrl:'...', pdfUrl:'...', fileName:'...' }
 */
 async function createAwardDoc(rows){
   const form = new URLSearchParams();
@@ -133,17 +121,19 @@ async function createAwardDoc(rows){
 
   if (!data) throw new Error("後端無回應或格式錯誤");
   if (data.ok || data.status === "success" || data.status === "ok") {
-    // 後端有時用 data.* 或頂層 *，都統一讀
     const d = data.data || data;
-    return { ok:true, sheetUrl:d.sheetUrl, pdfUrl:d.pdfUrl, docUrl:d.docUrl };
+    return {
+      ok: true,
+      sheetUrl: d.sheetUrl,
+      pdfUrl: d.pdfUrl,
+      docUrl: d.docUrl,
+      fileName: d.fileName
+    };
   }
   throw new Error(data.message || "建立文件失敗");
 }
 
-/* ========= 後端：寫入〈獲獎名單〉（＋加入名單） =========
-   不設 Content-Type，讓 fetch 自動用 x-www-form-urlencoded，避開預檢
-   後端 doPost 會將同名欄位寫入（action 會被忽略）
-*/
+/* ========= 後端：寫入〈獲獎名單〉（＋加入名單） ========= */
 async function writeRecordToSheet(rec){
   const form = new URLSearchParams();
   form.set("班級", rec.班級 || "");
@@ -198,18 +188,22 @@ function openPreviewModal(options){
   openPdfBtn.disabled = false;
 
   if (type === "emcee"){
-    // 司儀稿：openDoc=複製文字；openPdf=前端 PDF（新分頁）
+    // 司儀稿：openDoc=複製文字；openPdf=前端 PDF（直接下載）
     openDocBtn.textContent = "複製文字";
     openPdfBtn.textContent = "匯出 PDF";
 
     openDocBtn.onclick = () => copyTextToClipboard(text || "");
     openPdfBtn.onclick = async () => {
       try{
-        const htmlForPdf = html || `<div style="line-height:1.8;font-size:14px">${(text||"").replace(/\n/g,"<br>")}</div>`;
-        await exportEmceePdfNewTab(htmlForPdf, filename);
+        const htmlForPdf =
+          html ||
+          `<div style="font-family:'Noto Sans TC','PingFang TC','Microsoft JhengHei',sans-serif;font-size:14px;line-height:1.9">
+            ${(text||"").replace(/\n/g,"<br>")}
+           </div>`;
+        await exportEmceePdfDownload(htmlForPdf, filename); // ★ 直接下載
       }catch(e){
         console.error(e);
-        toast("開啟 PDF 失敗，請稍後再試。");
+        toast("下載 PDF 失敗，請稍後再試。");
       }
     };
 
@@ -277,11 +271,8 @@ function openPreviewModal(options){
         openPdfBtn.disabled = false;
       }
     };
-  } // ← 關閉 else
-
-} // ← 關閉 openPreviewModal
-
-
+  } // end if type
+}
 
 /* ========= 列表 & 名單 ========= */
 let rows = []; // {id, 班級, 座號, 姓名, 事由, 成績, 獎懲種類, 發生日期}
@@ -426,7 +417,6 @@ btnAward.onclick = ()=>{
   const html = buildAwardPreviewHTML(sel);
   openPreviewModal({ type:"award", rows:sel, html });
 };
-
 
 /* ========= 單一徽章：後端連線檢查（加強版） ========= */
 async function pingBackend() {
