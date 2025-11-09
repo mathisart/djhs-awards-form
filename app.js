@@ -225,7 +225,7 @@ function openPreviewModal(options){
           return window.open(options.docUrl || options.sheetUrl, "_blank");
         }
         openDocBtn.disabled = true;
-        const out = await createAwardDoc(rows);
+        const out = await createAwardDoc(rows.slice(0, AWARD_WRITE_LIMIT));
         if (out.docUrl || out.sheetUrl) window.open(out.docUrl || out.sheetUrl, "_blank");
         else toast("無法取得試算表連結。");
       }catch(e){
@@ -265,7 +265,7 @@ function openPreviewModal(options){
         }
 
         openPdfBtn.disabled = true;
-        const out = await createAwardDoc(rows);
+        const out = await createAwardDoc(rows.slice(0, AWARD_WRITE_LIMIT));
         const nameBase = (out && out.fileName) ? out.fileName : fallbackName; // 以後端 fileName 為主
         if (out && out.pdfUrl) await applyDownload(out.pdfUrl, nameBase);
         else toast("無法取得 PDF 連結。");
