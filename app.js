@@ -1,5 +1,6 @@
 /* ========= 基本設定 ========= */
 const WEB_APP_URL = (window.APP_CONFIG && window.APP_CONFIG.WEB_APP_URL) || "";
+const AWARD_WRITE_LIMIT = 12;
 
 /* ========= 狀態 & DOM ========= */
 const tb          = document.querySelector("#tb");
@@ -236,39 +237,46 @@ function openPreviewModal(options){
     };
 
     openPdfBtn.onclick = async () => {
+  try{
+    // 預設檔名（fallback）：獎懲公告_MM-dd
+    const pad = n => String(n).padStart(2,'0');
+    const now = new Date();
+    const fallbackName = `獎懲公告_${pad(now.getMonth()+1)}-${pad(now.getDate())}`;
+
+    const applyDownload = async (url, nameBase) => {
       try{
-        const filenameBase = filename || "獎懲建議表";
-        const openOrSave = async (url) => {
-          try{
-            const r = await fetch(url, { mode:"cors" });
-            const b = await r.blob();
-            const a = document.createElement("a");
-            a.href = URL.createObjectURL(b);
-            a.download = `${filenameBase}.pdf`;
-            document.body.appendChild(a);
-            a.click();
-            a.remove();
-            URL.revokeObjectURL(a.href);
-          }catch{
-            window.open(url, "_blank");
-          }
-        };
-
-        if (options.pdfUrl) return openOrSave(options.pdfUrl);
-
-        openPdfBtn.disabled = true;
-        const out = await createAwardDoc(rows);
-        if (out.pdfUrl) await openOrSave(out.pdfUrl);
-        else toast("無法取得 PDF 連結。");
-      }catch(e){
-        console.error(e);
-        toast("建立 PDF 失敗，請稍後再試。");
-      }finally{
-        openPdfBtn.disabled = false;
+        const r = await fetch(url, { mode:"cors" });
+        const b = await r.blob();
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(b);
+        a.download = `${nameBase || fallbackName}.pdf`; // ★ 這裡用固定命名
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(a.href);
+      }catch{
+        window.open(url, "_blank");
       }
     };
+
+    if (options.pdfUrl) {
+      return applyDownload(options.pdfUrl, fallbackName);
+    }
+
+    openPdfBtn.disabled = true;
+    const out = await createAwardDoc(rows);
+    const nameBase = (out && out.fileName) ? out.fileName : fallbackName; // ★ 以後端 fileName 為主
+    if (out && out.pdfUrl) await applyDownload(out.pdfUrl, nameBase);
+    else toast("無法取得 PDF 連結。");
+
+  }catch(e){
+    console.error(e);
+    toast("建立 PDF 失敗，請稍後再試。");
+  }finally{
+    openPdfBtn.disabled = false;
   }
-}
+};
+
 
 /* ========= 列表 & 名單 ========= */
 let rows = []; // {id, 班級, 座號, 姓名, 事由, 成績, 獎懲種類, 發生日期}
@@ -407,9 +415,13 @@ btnEmcee.onclick = ()=>{
 btnAward.onclick = ()=>{
   const sel = getSelectedRows();
   if(!sel.length) return toast("請先勾選至少一筆。");
+  if (sel.length > AWARD_WRITE_LIMIT) {
+    toast(`目前範本僅寫入第 4–15 列，共 ${AWARD_WRITE_LIMIT} 筆；已選 ${sel.length} 筆，將只輸出前 ${AWARD_WRITE_LIMIT} 筆。`);
+  }
   const html = buildAwardPreviewHTML(sel);
   openPreviewModal({ type:"award", rows:sel, html });
 };
+
 
 /* ========= 單一徽章：後端連線檢查（加強版） ========= */
 async function pingBackend() {
