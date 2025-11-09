@@ -1,6 +1,10 @@
-/* ========= 基本設定 ========= */
+/* ========= 可調參數 ========= */
 const WEB_APP_URL = (window.APP_CONFIG && window.APP_CONFIG.WEB_APP_URL) || "";
 const AWARD_WRITE_LIMIT = 12;
+
+// 司儀稿 PDF 文字樣式（已依你的需求設定）
+const EMC_FONT_SIZE   = 18;                    // px
+const EMC_FONT_FAMILY = "Microsoft JhengHei";  // 字型
 
 /* ========= 狀態 & DOM ========= */
 const tb          = document.querySelector("#tb");
@@ -56,7 +60,7 @@ function buildFilenameFromRows(rows){
   return (rows.length > 1) ? `${base}_等${rows.length}筆` : base;
 }
 
-/* ========= 司儀稿：前端 PDF（直接下載，不另開分頁） ========= */
+/* ========= 司儀稿：前端 PDF（直接下載） ========= */
 function ensureHtml2pdf(){
   return new Promise((resolve)=>{
     if (window.html2pdf) return resolve();
@@ -66,57 +70,40 @@ function ensureHtml2pdf(){
     document.head.appendChild(s);
   });
 }
-// 取代舊的 exportEmceePdfDirect
+
 async function exportEmceePdfDirect(html, filename){
   await ensureHtml2pdf();
-  if (!window.html2pdf) {
-    toast('PDF 元件載入失敗（html2pdf），請重新整理後再試。');
-    return;
-  }
 
-  // 建一個隱藏容器（有些瀏覽器需在 DOM 內才會正確轉 PDF）
+  // 建立可列印容器（避免 sandbox/iframe 影響）
   const box = document.createElement("div");
-  box.style.position = "fixed";
-  box.style.left = "-99999px";
-  box.style.top = "0";
-  box.style.width = "794px"; // A4 寬（約 96dpi）
+  box.style.width   = "794px"; // A4 寬（約 96dpi）
   box.style.padding = "16px";
+  box.style.background = "#fff";
   box.innerHTML = html;
-  document.body.appendChild(box);
+
+  // 放入隱藏區，避免版面抖動
+  const holder = document.createElement("div");
+  holder.style.position = "fixed";
+  holder.style.left = "-99999px";
+  holder.style.top  = "0";
+  holder.appendChild(box);
+  document.body.appendChild(holder);
 
   const opt = {
     margin: 10,
-    filename: `${(filename || "司儀稿")}.pdf`,
+    filename: `${filename || "司儀稿"}.pdf`,
     image: { type:'jpeg', quality:0.98 },
     html2canvas: { scale:2, useCORS:true },
     jsPDF: { unit:'mm', format:'a4', orientation:'portrait' }
   };
 
-  try {
-    // 先拿到 Blob，再自己觸發下載（相較 .save() 兼容性更高）
-    const worker = html2pdf().from(box).set(opt);
-    const blob   = await worker.outputPdf('blob');
-    const url    = URL.createObjectURL(blob);
-
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${(filename || "司儀稿")}.pdf`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-
-    // 某些嵌入（例如 Google Sites）會擋下載；備援改開新分頁
-    setTimeout(()=>{
-      URL.revokeObjectURL(url);
-    }, 30000);
-  } catch (e) {
-    console.error(e);
-    toast('匯出 PDF 失敗，請稍後再試。');
+  // 直接下載（save）以避開彈窗阻擋
+  try{
+    await html2pdf().from(box).set(opt).save();
   } finally {
-    box.remove();
+    holder.remove(); // 釋放節點
   }
 }
-
 
 /* ========= 後端：建立敘獎單（試算表 & PDF） ========= */
 async function createAwardDoc(rows){
@@ -206,21 +193,23 @@ function openPreviewModal(options){
     openPdfBtn.textContent = "匯出 PDF";
 
     openDocBtn.onclick = () => copyTextToClipboard(text || "");
-   openPdfBtn.onclick = async () => {
-  try{
-    const htmlForPdf = html || `<div style="line-height:1.8;font-size:16px;font-family:'Microsoft JhengHei',sans-serif">
-      ${(text||"").replace(/\n/g,"<br>")}
-    </div>`;
-    openPdfBtn.disabled = true;
-    await exportEmceePdfDirect(htmlForPdf, filename);   // ← 這行之後不要再放任何 <div> 原始字串
-  }catch(e){
-    console.error(e);
-    toast("匯出 PDF 失敗，請稍後再試。");
-  }finally{
-    openPdfBtn.disabled = false;
-  }
-};
-
+    openPdfBtn.onclick = async () => {
+      try{
+        // 若沒有自訂 html，就把純文字包成指定字級/字型
+        const htmlForPdf =
+          html ||
+          `<div style="line-height:1.8;font-size:${EMC_FONT_SIZE}px;font-family:'${EMC_FONT_FAMILY}',sans-serif">
+            ${(text||"").replace(/\n/g,"<br>")}
+          </div>`;
+        openPdfBtn.disabled = true;
+        await exportEmceePdfDirect(htmlForPdf, filename);
+      }catch(e){
+        console.error(e);
+        toast("匯出 PDF 失敗，請稍後再試。");
+      }finally{
+        openPdfBtn.disabled = false;
+      }
+    };
 
   } else {
     // 敘獎單：openDoc=匯出試算表；openPdf=後端 PDF
