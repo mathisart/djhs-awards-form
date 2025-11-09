@@ -174,18 +174,21 @@ function openPreviewModal(options){
     openPdfBtn.textContent = "匯出 PDF";
 
     openDocBtn.onclick = () => copyTextToClipboard(text || "");
-    openPdfBtn.onclick = async () => {
-      try{
-        const htmlForPdf = html || `<div style="line-height:1.8;font-size:14px">${(text||"").replace(/\n/g,"<br>")}</div>`;
-        openPdfBtn.disabled = true;
-        await exportEmceePdfDirect(htmlForPdf, filename);
-      }catch(e){
-        console.error(e);
-        toast("匯出 PDF 失敗，請稍後再試。");
-      }finally{
-        openPdfBtn.disabled = false;
-      }
-    };
+   openPdfBtn.onclick = async () => {
+  try{
+    const htmlForPdf = html || `<div style="line-height:1.8;font-size:16px;font-family:'Microsoft JhengHei',sans-serif">
+      ${(text||"").replace(/\n/g,"<br>")}
+    </div>`;
+    openPdfBtn.disabled = true;
+    await exportEmceePdfDirect(htmlForPdf, filename);   // ← 這行之後不要再放任何 <div> 原始字串
+  }catch(e){
+    console.error(e);
+    toast("匯出 PDF 失敗，請稍後再試。");
+  }finally{
+    openPdfBtn.disabled = false;
+  }
+};
+
 
   } else {
     // 敘獎單：openDoc=匯出試算表；openPdf=後端 PDF
