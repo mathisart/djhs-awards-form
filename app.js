@@ -21,96 +21,89 @@ const cReason = document.querySelector("#cReason");
 const cRank   = document.querySelector("#cRank");
 const cAward  = document.querySelector("#cAward");
 
-/* ========= Modal（依類型切換按鈕） ========= */
+/* ========= Modal ========= */
 const modal       = document.querySelector("#modal");
 const modalTitle  = document.querySelector("#modalTitle");
 const modalBody   = document.querySelector("#modalBody");
 const modalClose  = document.querySelector("#modalClose");
-const openDocBtn  = document.querySelector("#openDocBtn"); // 司儀稿=開啟 Google 文件；敘獎單=開試算表
-const openPdfBtn  = document.querySelector("#openPdfBtn"); // 兩者皆為匯出/下載 PDF
+const openDocBtn  = document.querySelector("#openDocBtn"); // 司儀稿=複製文字；敘獎單=開試算表
+const openPdfBtn  = document.querySelector("#openPdfBtn"); // 司儀稿=建立Docs+下載PDF；敘獎單=下載PDF
 if (modalClose) modalClose.onclick = () => modal.classList.remove("active");
 
-/* ========= 共用：小工具 ========= */
+/* ========= 小工具 ========= */
 function toast(msg){ alert(msg); }
-
 function sanitizeFilename(s){
-  return (s || "")
-    .replace(/[\s　]+/g, "")
-    .replace(/[\/\\\?\%\*\:\|\"\<\>]/g, "")
-    .slice(0, 60);
+  return (s || "").replace(/[\s　]+/g,"").replace(/[\/\\\?\%\*\:\|\"\<\>]/g,"").slice(0,60);
 }
 function pick(obj, keys){
-  for (const k of keys){
-    if (obj[k] != null && String(obj[k]).trim() !== "") return String(obj[k]).trim();
-  }
+  for (const k of keys){ if (obj[k] != null && String(obj[k]).trim() !== "") return String(obj[k]).trim(); }
   return "";
 }
 function buildFilenameFromRows(rows){
   if (!rows || rows.length === 0) return "輸出文件";
   const r = rows[0];
-  const cls    = pick(r, ["班級","class"]);
-  const seat   = pick(r, ["座號","seat"]);
-  const reason = pick(r, ["事由","reason"]);
-  const base   = sanitizeFilename(`${cls}${seat}-${reason}` || "輸出文件");
-  return (rows.length > 1) ? `${base}_等${rows.length}筆` : base;
+  const cls = pick(r, ["班級","class"]);
+  const seat= pick(r, ["座號","seat"]);
+  const rsn = pick(r, ["事由","reason"]);
+  const base= sanitizeFilename(`${cls}${seat}-${rsn}` || "司儀稿");
+  return (rows.length>1) ? `${base}_等${rows.length}筆` : base;
 }
 
-/* ========= 後端：敘獎單（試算表 & PDF） ========= */
+/* ========= 後端 API ========= */
+async function apiPost(formParams){
+  const res = await fetch(WEB_APP_URL, { method:"POST", body:formParams, mode:"cors", cache:"no-store" });
+  const txt = await res.text();
+  try { return JSON.parse(txt); } catch { return { status:"error", message:"非 JSON 回應" }; }
+}
+
+/** 敘獎單（試算表+PDF） */
 async function createAwardDoc(rows){
   const form = new URLSearchParams();
-  form.set("action", "create_award_doc");
+  form.set("action","create_award_doc");
   form.set("rows", JSON.stringify(rows));
-  const res  = await fetch(WEB_APP_URL, { method: "POST", body: form, mode: "cors", cache: "no-store" });
-  const txt  = await res.text();
-  let data   = null;
-  try { data = JSON.parse(txt); } catch {}
-  if (!data) throw new Error("後端無回應或格式錯誤");
-  if (data.ok || data.status === "success" || data.status === "ok") {
-    const d = data.data || data;
+  const j = await apiPost(form);
+  if (j && (j.ok || j.status==="success" || j.status==="ok")) {
+    const d = j.data || j;
     return { ok:true, sheetUrl:d.sheetUrl, pdfUrl:d.pdfUrl, docUrl:d.docUrl, fileName:d.fileName };
   }
-  throw new Error(data.message || "建立文件失敗");
+  throw new Error((j && j.message) || "建立敘獎單失敗");
 }
 
-/* ========= 後端：司儀稿（Google 文件 & PDF） ========= */
+/** 司儀稿：建立 Google 文件 + 回傳 PDF 下載連結（字級18px、微軟正黑體、行距1.8） */
 async function createEmceeDoc(text){
   const form = new URLSearchParams();
-  form.set("action", "create_emcee_doc");
+  form.set("action","create_emcee_doc");
   form.set("text", text || "");
-  const res  = await fetch(WEB_APP_URL, { method:"POST", body:form, mode:"cors", cache:"no-store" });
-  const j = await res.json();
-  const d = j.data || j;
-  if (d && (d.docUrl || d.pdfUrl)) return d; // {docUrl, pdfUrl, fileName, ...}
-  throw new Error(d && d.message ? d.message : "建立司儀稿失敗");
+  const j = await apiPost(form);
+  if (j && (j.ok || j.status==="success" || j.status==="ok")) {
+    const d = j.data || j;
+    return { ok:true, docUrl:d.docUrl, pdfUrl:d.pdfUrl, fileName:d.fileName };
+  }
+  throw new Error((j && j.message) || "建立司儀稿文件失敗");
 }
 
-/* ========= 後端：寫入〈獲獎名單〉（＋加入名單） ========= */
-async function writeRecordToSheet(rec){
-  const form = new URLSearchParams();
-  form.set("班級", rec.班級 || "");
-  form.set("座號", rec.座號 || "");
-  form.set("姓名", rec.姓名 || "");
-  form.set("發生日期", rec.發生日期 || "");
-  form.set("事由", rec.事由 || "");
-  form.set("獎懲種類", rec.獎懲種類 || "");
-  form.set("action", "add_record");
-  const res = await fetch(WEB_APP_URL, { method:"POST", body:form, mode:"cors", cache:"no-store" });
-  const txt = await res.text();
-  try {
-    const j = JSON.parse(txt);
-    if (j.status === "success" || j.ok === true) return true;
-  } catch {}
-  return false;
+/* ========= 複製文字 ========= */
+async function copyTextToClipboard(text){
+  try{
+    await navigator.clipboard.writeText(text || "");
+    toast("已複製文字到剪貼簿");
+  }catch{
+    const ta = document.createElement("textarea");
+    ta.value = text || "";
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand("copy");
+    ta.remove();
+    toast("已複製文字到剪貼簿");
+  }
 }
 
-/* ========= 預覽 Modal 入口 =========
+/* ========= Modal 入口 =========
    options = { type:'emcee'|'award', rows, html, text, sheetUrl?, pdfUrl?, docUrl?, fileName? }
 */
 function openPreviewModal(options){
-  if (!modal || !openDocBtn || !openPdfBtn) {
-    console.error('Modal 或按鈕節點不存在，請確認 index.html 的 id。');
-    return;
-  }
+  if (!modal || !openDocBtn || !openPdfBtn) { console.error("Modal/Btn 缺少節點"); return; }
+
   const { type, rows, html, text } = options || {};
   const filename = buildFilenameFromRows(rows);
 
@@ -118,71 +111,49 @@ function openPreviewModal(options){
   modalBody.innerHTML    = html || "";
   modal.classList.add("active");
 
-  // 清事件
+  // reset
   openDocBtn.onclick = null;
   openPdfBtn.onclick = null;
   openDocBtn.disabled = false;
   openPdfBtn.disabled = false;
 
   if (type === "emcee"){
-    // 司儀稿：openDoc=開啟 Google 文件；openPdf=後端 PDF
-    openDocBtn.textContent = "開啟 Google 文件";
-    openPdfBtn.textContent = "匯出 PDF";
+    // 司儀稿：openDoc=複製文字；openPdf=後端建立 Docs 並下載 PDF（同時在新分頁開 Docs）
+    openDocBtn.textContent = "複製文字";
+    openPdfBtn.textContent = "匯出 PDF（後端）";
 
-    openDocBtn.onclick = async () => {
-      try{
-        openDocBtn.disabled = true;
-        const out = await createEmceeDoc(text || "");
-        if (out.docUrl) window.open(out.docUrl, "_blank");
-        else toast("無法取得 Google 文件連結。");
-      }catch(e){
-        console.error(e);
-        toast("建立司儀稿文件失敗，請稍後再試。");
-      }finally{
-        openDocBtn.disabled = false;
-      }
-    };
+    openDocBtn.onclick = () => copyTextToClipboard(text || "");
 
-    openPdfBtn.onclick = async () => {
+    openPdfBtn.onclick = async ()=>{
       try{
         openPdfBtn.disabled = true;
         const out = await createEmceeDoc(text || "");
-        // 直接下載 PDF（若無法下載，改成開新分頁）
-        if (out.pdfUrl) {
-          try{
-            const r = await fetch(out.pdfUrl, { mode:"cors" });
-            const b = await r.blob();
-            const a = document.createElement("a");
-            a.href = URL.createObjectURL(b);
-            a.download = `${out.fileName || filename || "司儀稿"}.pdf`;
-            document.body.appendChild(a);
-            a.click();
-            a.remove();
-            URL.revokeObjectURL(a.href);
-          }catch{
-            window.open(out.pdfUrl, "_blank");
-          }
+        if (out && out.docUrl) window.open(out.docUrl, "_blank"); // 同步開啟 Google 文件方便微調
+        if (out && out.pdfUrl) {
+          // 直接下載
+          const a = document.createElement("a");
+          a.href = out.pdfUrl;
+          a.download = (out.fileName || filename) + ".pdf";
+          document.body.appendChild(a); a.click(); a.remove();
         } else {
           toast("無法取得 PDF 連結。");
         }
       }catch(e){
         console.error(e);
-        toast("匯出 PDF 失敗，請稍後再試。");
+        toast("建立 PDF 失敗，請稍後再試。");
       }finally{
         openPdfBtn.disabled = false;
       }
     };
 
   } else {
-    // 敘獎單：openDoc=匯出試算表；openPdf=後端 PDF
+    // 敘獎單：openDoc=開啟試算表；openPdf=下載後端 PDF
     openDocBtn.textContent = "匯出試算表";
     openPdfBtn.textContent = "匯出 PDF";
 
-    openDocBtn.onclick = async () => {
+    openDocBtn.onclick = async ()=>{
       try{
-        if (options.docUrl || options.sheetUrl) {
-          return window.open(options.docUrl || options.sheetUrl, "_blank");
-        }
+        if (options.docUrl || options.sheetUrl) return window.open(options.docUrl || options.sheetUrl, "_blank");
         openDocBtn.disabled = true;
         const out = await createAwardDoc(rows.slice(0, AWARD_WRITE_LIMIT));
         if (out.docUrl || out.sheetUrl) window.open(out.docUrl || out.sheetUrl, "_blank");
@@ -195,38 +166,18 @@ function openPreviewModal(options){
       }
     };
 
-    openPdfBtn.onclick = async () => {
+    openPdfBtn.onclick = async ()=>{
       try{
-        const pad = n => String(n).padStart(2,'0');
-        const now = new Date();
-        const fallbackName = `獎懲公告_${pad(now.getMonth()+1)}-${pad(now.getDate())}`;
-
-        const applyDownload = async (url, nameBase) => {
-          try{
-            const r = await fetch(url, { mode:"cors" });
-            const b = await r.blob();
-            const a = document.createElement("a");
-            a.href = URL.createObjectURL(b);
-            a.download = `${nameBase || fallbackName}.pdf`;
-            document.body.appendChild(a);
-            a.click();
-            a.remove();
-            URL.revokeObjectURL(a.href);
-          }catch{
-            window.open(url, "_blank");
-          }
-        };
-
-        if (options.pdfUrl) {
-          return applyDownload(options.pdfUrl, options.fileName || fallbackName);
-        }
-
         openPdfBtn.disabled = true;
         const out = await createAwardDoc(rows.slice(0, AWARD_WRITE_LIMIT));
-        const nameBase = (out && out.fileName) ? out.fileName : fallbackName;
-        if (out && out.pdfUrl) await applyDownload(out.pdfUrl, nameBase);
-        else toast("無法取得 PDF 連結。");
-
+        if (out && out.pdfUrl){
+          const a = document.createElement("a");
+          a.href = out.pdfUrl;
+          a.download = (out.fileName || "獎懲公告") + ".pdf";
+          document.body.appendChild(a); a.click(); a.remove();
+        } else {
+          toast("無法取得 PDF 連結。");
+        }
       }catch(e){
         console.error(e);
         toast("建立 PDF 失敗，請稍後再試。");
@@ -237,7 +188,7 @@ function openPreviewModal(options){
   }
 }
 
-/* ========= 列表 & 名單 ========= */
+/* ========= 名單渲染 ========= */
 let rows = []; // {id, 班級, 座號, 姓名, 事由, 成績, 獎懲種類, 發生日期}
 
 function render(){
@@ -247,7 +198,6 @@ function render(){
     const s = `${r.班級} ${r.座號} ${r.姓名} ${r.事由} ${r.成績}`.toLowerCase();
     return s.includes(q);
   });
-
   tb.innerHTML = list.map(r=>`
     <tr data-id="${r.id}">
       <td><input class="row-check" type="checkbox"></td>
@@ -259,19 +209,15 @@ function render(){
     </tr>
   `).join("");
 }
-
 function getSelectedRows(){
   const ids = [];
   tb.querySelectorAll(".row-check").forEach(ck=>{
-    if (ck.checked){
-      const tr = ck.closest("tr");
-      ids.push(tr.dataset.id);
-    }
+    if (ck.checked){ ids.push(ck.closest("tr").dataset.id); }
   });
   return rows.filter(r=>ids.includes(r.id));
 }
 
-/* ========= 預覽內容產生器 ========= */
+/* ========= 司儀稿內容生成 ========= */
 function buildEmceePreviewHTML(sel){
   const byReason = {};
   sel.forEach(r=>{
@@ -279,7 +225,7 @@ function buildEmceePreviewHTML(sel){
     if(!byReason[reason]) byReason[reason] = [];
     byReason[reason].push(r);
   });
-  const parts = Object.entries(byReason).map(([reason,list])=>{
+  const parts = Object.entries(byReason).map(([reason, list])=>{
     const seg = list.map(x=>{
       const cls  = x.班級 ? `${x.班級}班` : "";
       const rank = x.成績 ? `榮獲${x.成績}` : "";
@@ -292,38 +238,16 @@ function buildEmceePreviewHTML(sel){
   const html = `
     <div class="award-card">
       <div class="award-title">🏆 頒獎典禮司儀稿（自動彙整）</div>
-      <div class="award-tip">貼到 Google 文件可再微調。</div>
+      <div class="award-tip">已支援：複製文字 / 後端產 Google 文件＋PDF。</div>
       <div class="award-desc" style="line-height:1.9">${parts.map(p=>`<p>${p}</p>`).join("")}</div>
     </div>
   `;
   return { html, text };
 }
 
-function buildAwardPreviewHTML(sel){
-  const badge = (t)=>`<span class="award-badge">${t}</span>`;
-  const items = sel.map(r=>`
-    <div class="award-item">
-      ${badge(`${r.班級||""}班`)}
-      ${badge(`座${r.座號||""}`)}
-      <div class="award-name">${r.姓名||""}</div>
-      <div class="award-desc">${r.事由||""}${r.成績?`，${r.成績}`:""}${r.獎懲種類?`（${r.獎懲種類}）`:""}</div>
-    </div>
-  `).join("");
-  return `
-    <div class="award-card">
-      <div class="award-title">📄 獎懲建議表（預覽）</div>
-      <div class="award-tip">確認內容後再按下方「匯出」，產生正式文件。</div>
-      <div class="award-list">${items || `<div class="muted">尚未勾選資料</div>`}</div>
-    </div>
-  `;
-}
-
 /* ========= 事件 ========= */
 if (btnAdd) btnAdd.onclick = async ()=>{
-  if(!cClass.value || !cSeat.value || !cName.value){
-    toast("請先填『班級 / 座號 / 姓名』");
-    return;
-  }
+  if(!cClass.value || !cSeat.value || !cName.value){ toast("請先填『班級 / 座號 / 姓名』"); return; }
   const rec = {
     id: crypto.randomUUID(),
     班級: cClass.value.trim(),
@@ -334,26 +258,21 @@ if (btnAdd) btnAdd.onclick = async ()=>{
     成績: cRank.value.trim(),
     獎懲種類: cAward.value.trim()
   };
-  rows.unshift(rec);
-  render();
+  rows.unshift(rec); render();
   try{
-    const ok = await writeRecordToSheet(rec);
-    if (!ok) toast("已加入名單，但寫入試算表未確認成功。");
-  }catch(e){
-    console.error(e);
-    toast("已加入名單，但寫入試算表失敗。");
-  }
+    const form = new URLSearchParams();
+    form.set("班級",rec.班級); form.set("座號",rec.座號); form.set("姓名",rec.姓名);
+    form.set("發生日期",rec.發生日期); form.set("事由",rec.事由); form.set("獎懲種類",rec.獎懲種類);
+    form.set("action","add_record");
+    const j = await apiPost(form);
+    if (!(j && (j.ok || j.status==="success"))) toast("已加入名單，但寫入試算表未確認成功。");
+  }catch(e){ console.error(e); toast("已加入名單，但寫入試算表失敗。"); }
   cSeat.value=""; cName.value=""; cReason.value=""; cRank.value="";
 };
 
 if (inputQ) inputQ.oninput  = render;
 if (btnRefresh) btnRefresh.onclick = render;
-
-if (btnClear) btnClear.onclick = ()=>{
-  if(!confirm("確定清除目前清單？")) return;
-  rows = [];
-  render();
-};
+if (btnClear) btnClear.onclick = ()=>{ if(!confirm("確定清除目前清單？")) return; rows=[]; render(); };
 
 if (btnEmcee) btnEmcee.onclick = ()=>{
   const sel = getSelectedRows();
@@ -365,10 +284,12 @@ if (btnEmcee) btnEmcee.onclick = ()=>{
 if (btnAward) btnAward.onclick = ()=>{
   const sel = getSelectedRows();
   if(!sel.length) return toast("請先勾選至少一筆。");
-  if (sel.length > AWARD_WRITE_LIMIT) {
-    toast(`目前範本僅寫入第 4–15 列，共 ${AWARD_WRITE_LIMIT} 筆；已選 ${sel.length} 筆，將只輸出前 ${AWARD_WRITE_LIMIT} 筆。`);
-  }
-  const html = buildAwardPreviewHTML(sel);
+  if (sel.length > AWARD_WRITE_LIMIT) toast(`目前範本僅寫入第 4–15 列，共 ${AWARD_WRITE_LIMIT} 筆；已選 ${sel.length} 筆，將只輸出前 ${AWARD_WRITE_LIMIT} 筆。`);
+  const html = `
+    <div class="award-card">
+      <div class="award-title">📄 獎懲建議表（預覽）</div>
+      <div class="award-tip">確認內容後再按下方按鈕產生正式文件。</div>
+    </div>`;
   openPreviewModal({ type:"award", rows:sel, html });
 };
 
@@ -377,54 +298,21 @@ async function pingBackend() {
   if (!connBadge) return;
   connBadge.classList.remove("success");
   connBadge.textContent = "後端連線狀態檢查中…";
-
-  if (!WEB_APP_URL || !/^https?:\/\//i.test(WEB_APP_URL)) {
-    connBadge.textContent = "未設定後端網址";
-    connBadge.classList.remove("success");
-    return;
-  }
-  const withTimeout = (p, ms=5000) =>
-    Promise.race([ p, new Promise((_,rej)=>setTimeout(()=>rej(new Error("timeout")), ms)) ]);
-
+  if (!WEB_APP_URL || !/^https?:\/\//i.test(WEB_APP_URL)) { connBadge.textContent = "未設定後端網址"; return; }
+  const withTimeout = (p,ms=5000)=>Promise.race([p,new Promise((_,rej)=>setTimeout(()=>rej(new Error("timeout")),ms))]);
   let ok = false;
-  try {
-    try {
-      const url = WEB_APP_URL + (WEB_APP_URL.includes("?") ? "&" : "?") + "_t=" + Date.now();
-      await withTimeout(fetch(url, { method:"GET", mode:"no-cors", cache:"no-store" }), 5000);
-      ok = true;
-    } catch (_) {}
-    if (!ok) {
-      try {
-        const r = await withTimeout(fetch(WEB_APP_URL, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "ping", _t: Date.now() })
-        }), 5000);
-        const j = await r.json().catch(()=>null);
-        ok = j && (j.ok || j.status === "success" || j.status === "ok");
-      } catch (_) {}
+  try{
+    try{ const url = WEB_APP_URL + (WEB_APP_URL.includes("?")?"&":"?") + "_t=" + Date.now();
+      await withTimeout(fetch(url,{method:"GET",mode:"no-cors",cache:"no-store"}),5000); ok = true; }catch{}
+    if (!ok){
+      try{
+        const r = await withTimeout(fetch(WEB_APP_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"ping",_t:Date.now()})}),5000);
+        const j = await r.json().catch(()=>null); ok = j && (j.ok || j.status==="success" || j.status==="ok");
+      }catch{}
     }
-    if (!ok) {
-      try {
-        const form = new URLSearchParams();
-        form.set("action", "ping");
-        form.set("_t", String(Date.now()));
-        const r2 = await withTimeout(fetch(WEB_APP_URL, { method: "POST", body: form }), 5000);
-        const j2 = await r2.json().catch(()=>null);
-        ok = j2 && (j2.ok || j2.status === "success" || j2.status === "ok");
-      } catch (_) {}
-    }
-  } catch (_) {
-    ok = false;
-  }
-
-  if (ok) {
-    connBadge.textContent = "後端連線成功";
-    connBadge.classList.add("success");
-  } else {
-    connBadge.textContent = "後端連線失敗";
-    connBadge.classList.remove("success");
-  }
+  }catch{}
+  if (ok){ connBadge.textContent = "後端連線成功"; connBadge.classList.add("success"); }
+  else   { connBadge.textContent = "後端連線失敗"; connBadge.classList.remove("success"); }
 }
 if (connBadge) connBadge.addEventListener("click", pingBackend);
 
