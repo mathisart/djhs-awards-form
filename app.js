@@ -2,7 +2,41 @@
 /* ========= 基本設定 ========= */
 const WEB_APP_URL = (window.APP_CONFIG && window.APP_CONFIG.WEB_APP_URL) || "";
 const AWARD_WRITE_LIMIT = 12;
-
+/* ========= 排序輔助函式 (新) ========= */
+function getRankValue(rankStr) {
+  if (!rankStr) return 99999;
+  
+  // 權重越低，排越前面
+  const rankOrder = {
+    "金質獎": 10, "金獎": 10,
+    "銀質獎": 20, "銀獎": 20,
+    "銅質獎": 30, "銅獎": 30,
+    
+    "特優": 40,
+    "優等": 50,
+    "甲等": 60,
+    "乙等": 70,
+    "佳作": 80,
+    "入選": 90,
+    
+    "冠軍": 100, "第一名": 100,
+    "亞軍": 200, "第二名": 200,
+    "季軍": 300, "第三名": 300,
+    "第四名": 400,
+    "第五名": 500,
+    "第六名": 600,
+    "第七名": 700,
+    "第八名": 800,
+  };
+  
+  let bestValue = 99999;
+  for (const key in rankOrder) {
+    if (rankStr.includes(key)) {
+      bestValue = Math.min(bestValue, rankOrder[key]);
+    }
+  }
+  return bestValue;
+}
 /* ========= 狀態 & DOM ========= */
 const tb          = document.querySelector("#tb");
 const inputQ      = document.querySelector("#q");
@@ -125,7 +159,17 @@ function buildEmceePreviewHTML(sel){
     if(!byReason[reason]) byReason[reason] = [];
     byReason[reason].push(r);
   });
+  
   const parts = Object.entries(byReason).map(([reason, list])=>{
+    
+    // ✅ **修正點：在這裡加入排序**
+    list.sort((a, b) => {
+      const rankA = (a.成績 || "").trim();
+      const rankB = (b.成績 || "").trim();
+      return getRankValue(rankA) - getRankValue(rankB);
+    });
+    // ✅ **排序結束**
+    
     const seg = list.map(x=>{
       const cls  = x.班級 ? `${x.班級}班` : "";
       const rank = x.成績 ? `榮獲${x.成績}` : "";
