@@ -1,308 +1,395 @@
-/********** 常數：請改成你的資料表與範本 ID **********/
-const SPREADSHEET_ID = '19KahliocjSoPXVqhKY95Bgtibv-aU6rba_VgoM0erPw';      // 你的資料活頁簿 ID
-const TEMPLATE_SPREADSHEET_ID = '17RYCwMcH3V8tY3bRU0Xx3Jihu1xvi7oYKKIIUhy7DeE'; // 獎懲單範本試算表 ID
-const SHEET_NAME = '獲獎名單';
+/* ========= 基本設定 ========= */
+const WEB_APP_URL = (window.APP_CONFIG && window.APP_CONFIG.WEB_APP_URL) || "";
 
-// 表格寫入設定（避免清到範本底部簽核區）
-const TABLE_START_ROW = 4;   // 從第 4 列開始填（你的範本表頭）
-const TABLE_COLS      = 12;  // A~L 共 12 欄
-const TABLE_MAX_ROWS  = 60;  // 一次最多清/寫 60 列，不影響下方簽核區
+/* ========= 狀態 & DOM ========= */
+const tb          = document.querySelector("#tb");
+const inputQ      = document.querySelector("#q");
+const btnAdd      = document.querySelector("#btnAdd");
+const btnEmcee    = document.querySelector("#btnEmcee");
+const btnAward    = document.querySelector("#btnAward");
+const btnRefresh  = document.querySelector("#btnRefresh");
+const btnClear    = document.querySelector("#btnClear");
+const connBadge   = document.querySelector("#connBadge");
 
-/********** 小工具（標準化回應） **********/
-function ok(data = {}, msg = 'OK') {
-  return ContentService.createTextOutput(
-    JSON.stringify({ status: 'success', data, message: msg })
-  ).setMimeType(ContentService.MimeType.JSON);
+/* 表單欄位 */
+const cClass  = document.querySelector("#cClass");
+const cSeat   = document.querySelector("#cSeat");
+const cName   = document.querySelector("#cName");
+const cDate   = document.querySelector("#cDate");
+const cReason = document.querySelector("#cReason");
+const cRank   = document.querySelector("#cRank");
+const cAward  = document.querySelector("#cAward");
+
+/* ========= Modal（依類型切換按鈕） ========= */
+const modal       = document.querySelector("#modal");
+const modalTitle  = document.querySelector("#modalTitle");
+const modalBody   = document.querySelector("#modalBody");
+const modalClose  = document.querySelector("#modalClose");
+const openDocBtn  = document.querySelector("#openDocBtn"); // 司儀稿=複製文字；敘獎單=匯出試算表
+const openPdfBtn  = document.querySelector("#openPdfBtn"); // 兩者皆為匯出 PDF
+modalClose.onclick = () => modal.classList.remove("active");
+
+/* ========= 共用：小工具 ========= */
+function toast(msg){ alert(msg); }
+
+function sanitizeFilename(s){
+  return (s || "")
+    .replace(/[\s　]+/g, "")
+    .replace(/[\/\\\?\%\*\:\|\"\<\>]/g, "")
+    .slice(0, 60);
 }
-function fail(err) {
-  return ContentService.createTextOutput(
-    JSON.stringify({ status: 'error', message: String(err) })
-  ).setMimeType(ContentService.MimeType.JSON);
+function pick(obj, keys){
+  for (const k of keys){
+    if (obj[k] != null && String(obj[k]).trim() !== "") return String(obj[k]).trim();
+  }
+  return "";
+}
+function buildFilenameFromRows(rows){
+  if (!rows || rows.length === 0) return "輸出文件";
+  const r = rows[0];
+  const cls    = pick(r, ["班級","class"]);
+  const seat   = pick(r, ["座號","seat"]);
+  const reason = pick(r, ["事由","reason"]);
+  const base   = sanitizeFilename(`${cls}${seat}-${reason}` || "輸出文件");
+  return (rows.length > 1) ? `${base}_等${rows.length}筆` : base;
 }
 
-/********** 資料表存取 **********/
-function openDataSS_() { return SpreadsheetApp.openById(SPREADSHEET_ID); }
-
-function ensureHeaders_(sheet) {
-  // 只保留：編號 / 班級 / 座號 / 姓名 / 發生日期 / 事由 / 獎懲種類 / 法條依據 / 建立時間
-  const headers = ['編號','班級','座號','姓名','發生日期','事由','獎懲種類','法條依據','建立時間'];
-  if (sheet.getLastRow() === 0) sheet.appendRow(headers);
-  return headers;
-}
-
-function valuesToObjects_(values) {
-  if (!values || values.length <= 1) return [];
-  const [header, ...rows] = values;
-  return rows.map(r => {
-    const o = {};
-    header.forEach((h, i) => o[h] = r[i]);
-    return o;
+/* ========= 司儀稿：前端 PDF ========= */
+function ensureHtml2pdf(){
+  return new Promise((resolve)=>{
+    if (window.html2pdf) return resolve();
+    const s = document.createElement("script");
+    s.src   = "https://cdn.jsdelivr.net/npm/html2pdf.js@0.9.3/dist/html2pdf.bundle.min.js";
+    s.onload= () => resolve();
+    document.head.appendChild(s);
   });
 }
+// 下載 → 開新分頁預覽（修正點 #2）
+async function exportEmceePdf(html, filename){
+  await ensureHtml2pdf();
+  const box = document.createElement("div");
+  box.style.width = "794px"; // A4 approximate width
+  box.style.padding = "16px";
+  box.innerHTML = html;
 
-/********** 法條：自動推論與「條/款」拆欄 **********/
-function getBasis_(reward) {
-  if (!reward) return '無';
-  const s = String(reward);
-  if (s.includes('嘉獎')) return '第四條第十六款';
-  if (s.includes('小功')) return '第五條第十二款';
-  return '無';
-}
-
-// 將「第四條第十六款」→ [4,16]；「第五條第十二款」→ [5,12]；其他→ ["",""]
-function splitBasisToArticleClause_(basis) {
-  if (!basis) return ["",""];
-  const m = String(basis).match(/第(.+?)條.*?第(.+?)款/);
-  if (!m) return ["",""];
-  return [zhNumToInt_(m[1]), zhNumToInt_(m[2])];
-}
-
-// 支援中文數字與阿拉伯數字
-function zhNumToInt_(s) {
-  s = String(s || '').trim();
-  if (!s) return '';
-  if (/^\d+$/.test(s)) return parseInt(s, 10);
-
-  const map = { 一:1, 二:2, 兩:2, 三:3, 四:4, 五:5, 六:6, 七:7, 八:8, 九:9, 十:10, 零:0, 〇:0 };
-  // 只涵蓋本案需求（到二十幾已足夠）：十、十一、十二…、二十、二十一…
-  let n = 0;
-  if (s.length === 1) return map[s] || '';
-  if (s.startsWith('十')) {            // 十六 → 16
-    const tail = map[s[1]] || 0;
-    return 10 + tail;
-  }
-  const parts = s.split('十');
-  if (parts.length === 2) {            // 十四 / 二十 / 二十三
-    const tens = map[parts[0]] || 0;
-    const ones = map[parts[1]] || 0;
-    return tens * 10 + ones;
-  }
-  // 其他罕見格式，嘗試逐字累加
-  for (const ch of s) n = n * 10 + (map[ch] || 0);
-  return n || '';
-}
-
-/********** 輔助：解析前端 payload（支援 JSON 與 URL-encoded） **********/
-function parsePayload_(e) {
-  if (!e || !e.postData) return {};
-  const ctype = String(e.postData.type || e.postData.contentsType || '').toLowerCase();
-
-  // application/json → 直接 parse
-  if (ctype.indexOf('application/json') >= 0) {
-    try { return JSON.parse(e.postData.contents || '{}'); } catch (err) { return {}; }
-  }
-
-  // 其餘視為 URL-encoded（避免預檢）
-  const raw = String(e.postData.contents || '');
-  const obj = {};
-  raw.split('&').filter(Boolean).forEach(pair => {
-    const idx = pair.indexOf('=');
-    const k = decodeURIComponent(idx >= 0 ? pair.slice(0, idx) : pair);
-    const v = decodeURIComponent(idx >= 0 ? pair.slice(idx + 1) : '');
-    obj[k] = v;
-  });
-  return obj;
-}
-
-/********** doGet：?page=html 回前端頁，其餘回 JSON **********/
-function doGet(e) {
-  try {
-    if (e && e.parameter && e.parameter.page === 'html') {
-      return HtmlService.createHtmlOutputFromFile('index')
-        .setTitle('學生獎懲報表與文件自動化系統')
-        .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
-    }
-    const ss = openDataSS_();
-    const sh = ss.getSheetByName(SHEET_NAME) || ss.insertSheet(SHEET_NAME);
-    ensureHeaders_(sh);
-    const list = valuesToObjects_(sh.getDataRange().getValues());
-    return ok(list, '資料讀取成功');
-  } catch (err) {
-    return fail('讀取資料時發生錯誤：' + err.message);
-  }
-}
-
-/********** doPost：新增資料 / 產生獎懲單 **********/
-function doPost(e) {
-  try {
-    const payload = parsePayload_(e) || {};
-
-    // ① 前端直接丟 rows 來製作敘獎單（不依賴資料表的「編號」）
-    if (payload.action === 'create_award_doc') {
-      let rows = [];
-      try { rows = JSON.parse(payload.rows || '[]'); } catch (_) { rows = []; }
-
-      // 正規化欄位名稱
-      const normalized = rows.map(r => ({
-        班級: String(r.班級 || r.class || ''),
-        座號: String(r.座號 || r.seat || ''),
-        姓名: String(r.姓名 || r.name || ''),
-        發生日期: String(r.發生日期 || r.eventDate || ''),  // 可為空
-        事由: String(r.事由 || r.reason || ''),
-        獎懲種類: String(r.獎懲種類 || r.reward || '')
-      }));
-
-      const urls = generateAwardSheetFromRows_(normalized);
-      return ok(urls, '已由前端 rows 直接產生敘獎單');
-    }
-
-    // ② 從資料表的「編號」清單產製敘獎單（你原本的流程）
-    if (payload.action === '生成文件' && payload.type === '獎懲單製作') {
-      let ids = payload.ids;
-      if (typeof ids === 'string') { try { ids = JSON.parse(ids); } catch (_) { ids = []; } }
-      const urls = generateAwardSheetAndReturnUrls_(Array.isArray(ids) ? ids : []);
-      return ok(urls, '已建立試算表並回傳 PDF 連結');
-    }
-
-    // ③ 新增一筆名單到資料表（＋加入名單）
-    const ss = openDataSS_();
-    const sh = ss.getSheetByName(SHEET_NAME) || ss.insertSheet(SHEET_NAME);
-    ensureHeaders_(sh);
-
-    const id     = Utilities.getUuid();
-    const now    = new Date();
-    const cls    = payload['班級'] || payload['class'] || '';
-    const seat   = payload['座號'] || payload['seatNo'] || '';
-    const name   = payload['姓名'] || payload['name'] || '';
-    const date   = payload['發生日期'] || payload['eventDate'] || '';
-    const reason = payload['事由'] || payload['reason'] || '';
-    const reward = payload['獎懲種類'] || payload['reward'] || '';
-    const basis  = getBasis_(reward); // 依獎懲自動推法條
-
-    sh.appendRow([id, cls, seat, name, date, reason, reward, basis, now]);
-    return ok({}, '資料寫入成功');
-
-  } catch (err) {
-    return fail('寫入或處理時發生錯誤：' + err.message);
-  }
-}
-
-
-/********** 產生獎懲單（複製範本、填 A:班級 B:座號 C:姓名 D/E:月日 J:條 K:款 L:獎懲） **********/
-function buildPdfExportUrl_(fileId, sheetId) {
-  const base = 'https://docs.google.com/spreadsheets/d/' + fileId + '/export?';
-  const params = {
-    format:'pdf', size:'A4', portrait:'true', fitw:'true',
-    top_margin:'0.5', bottom_margin:'0.5', left_margin:'0.5', right_margin:'0.5',
-    sheetnames:'false', printtitle:'false', pagenumbers:'false', gridlines:'false', gid:sheetId
+  const opt = {
+    margin: 10,
+    filename: `${filename || "司儀稿"}.pdf`,
+    image: { type:'jpeg', quality:0.98 },
+    html2canvas: { scale:2, useCORS:true },
+    jsPDF: { unit:'mm', format:'a4', orientation:'portrait' }
   };
-  const q = Object.keys(params).map(k => `${k}=${encodeURIComponent(params[k])}`).join('&');
-  return base + q;
+
+  // 不直接 save；輸出 blob 後開新分頁
+  const blob = await html2pdf().from(box).set(opt).outputPdf('blob');
+  const url = URL.createObjectURL(blob);
+  window.open(url, "_blank");
+  setTimeout(()=>URL.revokeObjectURL(url), 60_000);
 }
 
-function generateAwardSheetAndReturnUrls_(ids) {
-  const dataSS = openDataSS_();
-  const dataSheet = dataSS.getSheetByName(SHEET_NAME);
-  if (!dataSheet) throw new Error('找不到工作表：' + SHEET_NAME);
+/* ========= 後端：建立敘獎單（試算表 & PDF） =========
+   使用 x-www-form-urlencoded，避免 CORS preflight
+   後端可能回兩種格式：
+   A) { ok:true, sheetUrl:'...', pdfUrl:'...' }
+   B) { status:'success', data:{ docUrl:'...', pdfUrl:'...' } }   // GAS 的 ok(urls) 版本
+*/
+async function createAwardDoc(rows){
+  const form = new URLSearchParams();
+  form.set("action", "create_award_doc");
+  form.set("rows", JSON.stringify(rows));
 
-  const list = valuesToObjects_(dataSheet.getDataRange().getValues());
-  const rows = (Array.isArray(ids) && ids.length)
-    ? list.filter(o => String(o['編號'] || '') && ids.includes(String(o['編號'])))
-    : list.filter(o => String(o['編號'] || ''));
+  const res  = await fetch(WEB_APP_URL, { method:"POST", body:form, mode:"cors", cache:"no-store" });
+  const txt  = await res.text();
+  let data   = null;
+  try { data = JSON.parse(txt); } catch {}
 
-  // 複製範本
-  const copied = DriveApp.getFileById(TEMPLATE_SPREADSHEET_ID)
-    .makeCopy(`獎懲公告_套版_${Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd_HHmm')}`);
-  const ss = SpreadsheetApp.open(copied);
-  const sheet = ss.getSheets()[0];
+  if (!data) throw new Error("後端無回應或格式錯誤");
 
-  // 右上角日期（M1）
-  sheet.getRange('M1').setValue(
-    Utilities.formatDate(new Date(), Session.getScriptTimeZone(), '中華民國 yyy 年 MM 月 dd 日')
-  );
+  // ---- 兼容各種欄位名稱（修正點 #1）----
+  const okFlag   = data.ok || data.status === "success" || data.status === "ok";
+  const sheetUrl = data.sheetUrl || data.docUrl || (data.data && (data.data.sheetUrl || data.data.docUrl));
+  const pdfUrl   = data.pdfUrl   || (data.data && data.data.pdfUrl);
 
-  // 只清「可寫區」以免刪到範本內文（簽報人/組長/主任/校長等）
-  sheet.getRange(TABLE_START_ROW, 1, TABLE_MAX_ROWS, TABLE_COLS).clearContent();
+  if (okFlag && (sheetUrl || pdfUrl)) {
+    return { ok:true, sheetUrl, pdfUrl };
+  }
+  throw new Error(data.message || "建立文件失敗");
+}
 
-  // 寫入列：
-  // A:班級 B:座號 C:姓名 D:月 E:日 F:事由 ... J:條 K:款 L:獎懲
-  const out = rows.map(p => {
-    const d = new Date(p['發生日期'] || '');
-    const mm = isNaN(d) ? '' : (d.getMonth() + 1);
-    const dd = isNaN(d) ? '' : d.getDate();
+/* ========= 共用：複製文字 ========= */
+async function copyTextToClipboard(text){
+  try{
+    await navigator.clipboard.writeText(text || "");
+    toast("已複製文字到剪貼簿");
+  }catch{
+    const ta = document.createElement("textarea");
+    ta.value = text || "";
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand("copy");
+    ta.remove();
+    toast("已複製文字到剪貼簿");
+  }
+}
 
-    const reward = p['獎懲種類'] || '';
-    const basisText = p['法條依據'] || getBasis_(reward);
-    const [article, clause] = splitBasisToArticleClause_(basisText); // ← ★ 拆成條/款
+/* ========= 預覽 Modal 入口 ========= */
+function openPreviewModal(options){
+  const { type, rows, html, text } = options || {};
+  const filename = buildFilenameFromRows(rows);
 
-    // A B C D E F G H I J K L
-    // 0 1 2 3 4 5 6 7 8 9 10 11
-    return [
-      p['班級'] || '',
-      p['座號'] || '',
-      p['姓名'] || '',
-      mm,             // D 月
-      dd,             // E 日
-      p['事由'] || '',// F 事由
-      '', '', '',     // G H I (保留)
-      article,        // J 條 ← 只填數字
-      clause,         // K 款 ← 只填數字
-      reward          // L 獎懲種類
-    ];
+  modalTitle.textContent = (type === "emcee") ? "司儀稿（預覽）" : "獎懲建議表（預覽）";
+  modalBody.innerHTML    = html || "";
+  modal.classList.add("active");
+
+  openDocBtn.onclick = null;
+  openPdfBtn.onclick = null;
+  openDocBtn.disabled = false;
+  openPdfBtn.disabled = false;
+
+  if (type === "emcee"){
+    openDocBtn.textContent = "複製文字";
+    openPdfBtn.textContent = "匯出 PDF";
+    openDocBtn.onclick = () => copyTextToClipboard(text || "");
+    openPdfBtn.onclick = async () => {
+      try{
+        const htmlForPdf = html || `<div style="line-height:1.8;font-size:14px">${(text||"").replace(/\n/g,"<br>")}</div>`;
+        await exportEmceePdf(htmlForPdf, filename);
+      }catch(e){
+        console.error(e);
+        toast("匯出 PDF 失敗，請稍後再試。");
+      }
+    };
+  } else {
+    openDocBtn.textContent = "匯出試算表";
+    openPdfBtn.textContent = "匯出 PDF";
+
+    openDocBtn.onclick = async () => {
+      try{
+        if (options.sheetUrl) return window.open(options.sheetUrl, "_blank");
+        openDocBtn.disabled = true;
+        const out = await createAwardDoc(rows);
+        if (out.sheetUrl) window.open(out.sheetUrl, "_blank");
+        else toast("無法取得試算表連結。");
+      }catch(e){
+        console.error(e);
+        toast("建立試算表失敗，請稍後再試。");
+      }finally{
+        openDocBtn.disabled = false;
+      }
+    };
+
+    openPdfBtn.onclick = async () => {
+      try{
+        const filenameBase = filename || "獎懲建議表";
+        const openOrSave = async (url) => {
+          try{
+            const r = await fetch(url, { mode:"cors" });
+            const b = await r.blob();
+            const a = document.createElement("a");
+            a.href = URL.createObjectURL(b);
+            a.download = `${filenameBase}.pdf`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+          }catch{
+            window.open(url, "_blank");
+          }
+        };
+
+        if (options.pdfUrl) return openOrSave(options.pdfUrl);
+
+        openPdfBtn.disabled = true;
+        const out = await createAwardDoc(rows);
+        if (out.pdfUrl) await openOrSave(out.pdfUrl);
+        else toast("無法取得 PDF 連結。");
+      }catch(e){
+        console.error(e);
+        toast("建立 PDF 失敗，請稍後再試。");
+      }finally{
+        openPdfBtn.disabled = false;
+      }
+    };
+  }
+}
+
+/* ========= 列表 & 名單 ========= */
+let rows = []; // {id, 班級, 座號, 姓名, 事由, 成績, 獎懲種類}
+
+function render(){
+  const q = (inputQ.value||"").trim().toLowerCase();
+  const list = rows.filter(r=>{
+    if(!q) return true;
+    const s = `${r.班級} ${r.座號} ${r.姓名} ${r.事由} ${r.成績}`.toLowerCase();
+    return s.includes(q);
   });
 
-  if (out.length) {
-    // 寫入不會超過可寫區 TABLE_MAX_ROWS
-    const writeRows = Math.min(out.length, TABLE_MAX_ROWS);
-    sheet.getRange(TABLE_START_ROW, 1, writeRows, TABLE_COLS).setValues(out.slice(0, writeRows));
-  }
-
-  const fileId = ss.getId();
-  const docUrl = ss.getUrl();
-  const pdfUrl = buildPdfExportUrl_(fileId, sheet.getSheetId());
-
-  // 若要讓任何人可下載 PDF，取消下一行註解
-  // DriveApp.getFileById(fileId).setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-
-  return { docUrl, pdfUrl };
+  tb.innerHTML = list.map(r=>`
+    <tr data-id="${r.id}">
+      <td><input class="row-check" type="checkbox" checked></td>
+      <td>${r.班級||""}</td>
+      <td>${r.座號||""}</td>
+      <td>${r.姓名||""}</td>
+      <td>${r.事由||""}</td>
+      <td>${r.成績||""}</td>
+    </tr>
+  `).join("");
 }
-// 直接用「前端傳來的列」產 PDF/試算表，不讀資料表
-function generateAwardSheetFromRows_(rows) {
-  // 複製範本
-  const copied = DriveApp.getFileById(TEMPLATE_SPREADSHEET_ID)
-    .makeCopy(`獎懲公告_套版_${Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd_HHmm')}`);
-  const ss = SpreadsheetApp.open(copied);
-  const sheet = ss.getSheets()[0];
 
-  // 右上角日期（M1）
-  sheet.getRange('M1').setValue(
-    Utilities.formatDate(new Date(), Session.getScriptTimeZone(), '中華民國 yyy 年 MM 月 dd 日')
-  );
+function getSelectedRows(){
+  const ids = [];
+  tb.querySelectorAll(".row-check").forEach(ck=>{
+    if (ck.checked){
+      const tr = ck.closest("tr");
+      ids.push(tr.dataset.id);
+    }
+  });
+  return rows.filter(r=>ids.includes(r.id));
+}
 
-  // 只清「可寫區」
-  sheet.getRange(TABLE_START_ROW, 1, TABLE_MAX_ROWS, TABLE_COLS).clearContent();
-
-  // 寫入列：A:班級 B:座號 C:姓名 D:月 E:日 F:事由 ... J:條 K:款 L:獎懲
-  const out = (rows || []).map(p => {
-    const d  = new Date(p['發生日期'] || '');
-    const mm = isNaN(d) ? '' : (d.getMonth() + 1);
-    const dd = isNaN(d) ? '' : d.getDate();
-
-    const reward    = p['獎懲種類'] || '';
-    const basisText = p['法條依據'] || getBasis_(reward);
-    const [article, clause] = splitBasisToArticleClause_(basisText);
-
-    return [
-      p['班級'] || '',
-      p['座號'] || '',
-      p['姓名'] || '',
-      mm, dd,
-      p['事由'] || '',
-      '', '', '',
-      article, clause,
-      reward
-    ];
+/* ========= 預覽內容產生器 ========= */
+function buildEmceePreviewHTML(sel){
+  const byReason = {};
+  sel.forEach(r=>{
+    const reason = (r.事由||"").trim();
+    if(!byReason[reason]) byReason[reason] = [];
+    byReason[reason].push(r);
+  });
+  const parts = Object.entries(byReason).map(([reason,list])=>{
+    const seg = list.map(x=>{
+      const cls  = x.班級 ? `${x.班級}班` : "";
+      const rank = x.成績 ? `榮獲${x.成績}` : "";
+      return `${cls}${x.姓名}${rank}`;
+    }).join("、");
+    return `${reason}：${seg}，恭請校長頒獎。`;
   });
 
-  if (out.length) {
-    const writeRows = Math.min(out.length, TABLE_MAX_ROWS);
-    sheet.getRange(TABLE_START_ROW, 1, writeRows, TABLE_COLS).setValues(out.slice(0, writeRows));
-  }
-
-  const fileId = ss.getId();
-  const docUrl = ss.getUrl();
-  const pdfUrl = buildPdfExportUrl_(fileId, sheet.getSheetId());
-  // 如需任何人可下載，解除下行註解
-  // DriveApp.getFileById(fileId).setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-  return { docUrl, pdfUrl };
+  const text = parts.join("\n");
+  const html = `
+    <div class="award-card">
+      <div class="award-title">🏆 頒獎典禮司儀稿（自動彙整）</div>
+      <div class="award-tip">貼到 Google 文件可再微調。</div>
+      <div class="award-desc" style="line-height:1.9">${parts.map(p=>`<p>${p}</p>`).join("")}</div>
+    </div>
+  `;
+  return { html, text };
 }
+
+function buildAwardPreviewHTML(sel){
+  const badge = (t)=>`<span class="award-badge">${t}</span>`;
+  const items = sel.map(r=>`
+    <div class="award-item">
+      ${badge(`${r.班級||""}班`)}
+      ${badge(`座${r.座號||""}`)}
+      <div class="award-name">${r.姓名||""}</div>
+      <div class="award-desc">${r.事由||""}${r.成績?`，${r.成績}`:""}${r.獎懲種類?`（${r.獎懲種類}）`:""}</div>
+    </div>
+  `).join("");
+  return `
+    <div class="award-card">
+      <div class="award-title">📄 獎懲建議表（預覽）</div>
+      <div class="award-tip">確認內容後再按下方「匯出」，產生正式文件。</div>
+      <div class="award-list">${items || `<div class="muted">尚未勾選資料</div>`}</div>
+    </div>
+  `;
+}
+
+/* ========= 事件 ========= */
+btnAdd.onclick = ()=>{
+  if(!cClass.value || !cSeat.value || !cName.value){
+    toast("請先填『班級 / 座號 / 姓名』");
+    return;
+  }
+  rows.unshift({
+    id: crypto.randomUUID(),
+    班級: cClass.value.trim(),
+    座號: cSeat.value.trim(),
+    姓名: cName.value.trim(),
+    發生日期: cDate.value || "",    // 也帶進去，後端會拆月/日
+    事由: cReason.value.trim(),
+    成績: cRank.value.trim(),
+    獎懲種類: cAward.value.trim()
+  });
+  render();
+  cSeat.value=""; cName.value=""; cReason.value=""; cRank.value="";
+};
+
+inputQ.oninput  = render;
+btnRefresh.onclick = render;
+
+btnClear.onclick = ()=>{
+  if(!confirm("確定清除目前清單？")) return;
+  rows = [];
+  render();
+};
+
+btnEmcee.onclick = ()=>{
+  const sel = getSelectedRows();
+  if(!sel.length) return toast("請先勾選至少一筆。");
+  const { html, text } = buildEmceePreviewHTML(sel);
+  openPreviewModal({ type:"emcee", rows:sel, html, text });
+};
+
+btnAward.onclick = ()=>{
+  const sel = getSelectedRows();
+  if(!sel.length) return toast("請先勾選至少一筆。");
+  const html = buildAwardPreviewHTML(sel);
+  openPreviewModal({ type:"award", rows:sel, html });
+};
+
+/* ========= 單一徽章：後端連線檢查 ========= */
+async function pingBackend() {
+  if (!connBadge) return;
+  connBadge.classList.remove("success");
+  connBadge.textContent = "後端連線狀態檢查中…";
+
+  if (!WEB_APP_URL || !/^https?:\/\//i.test(WEB_APP_URL)) {
+    connBadge.textContent = "未設定後端網址";
+    connBadge.classList.remove("success");
+    return;
+  }
+  const withTimeout = (p, ms=5000) =>
+    Promise.race([ p, new Promise((_,rej)=>setTimeout(()=>rej(new Error("timeout")), ms)) ]);
+  let ok = false;
+  try {
+    try {
+      const url = WEB_APP_URL + (WEB_APP_URL.includes("?") ? "&" : "?") + "_t=" + Date.now();
+      await withTimeout(fetch(url, { method:"GET", mode:"no-cors", cache:"no-store" }), 5000);
+      ok = true;
+    } catch (_) {}
+    if (!ok) {
+      try {
+        const r = await withTimeout(fetch(WEB_APP_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "ping", _t: Date.now() })
+        }), 5000);
+        const j = await r.json().catch(()=>null);
+        ok = j && (j.ok || j.status === "success" || j.status === "ok");
+      } catch (_) {}
+    }
+    if (!ok) {
+      try {
+        const form = new URLSearchParams();
+        form.set("action", "ping");
+        form.set("_t", String(Date.now()));
+        const r2 = await withTimeout(fetch(WEB_APP_URL, { method: "POST", body: form }), 5000);
+        const j2 = await r2.json().catch(()=>null);
+        ok = j2 && (j2.ok || j2.status === "success" || j2.status === "ok");
+      } catch (_) {}
+    }
+  } catch (_) {
+    ok = false;
+  }
+  if (ok) {
+    connBadge.textContent = "後端連線成功";
+    connBadge.classList.add("success");
+  } else {
+    connBadge.textContent = "後端連線失敗";
+    connBadge.classList.remove("success");
+  }
+}
+if (connBadge) connBadge.addEventListener("click", pingBackend);
+
+/* ========= 啟動 ========= */
+render();
+pingBackend();
