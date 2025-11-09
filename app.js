@@ -27,12 +27,10 @@ const modalTitle   = document.querySelector("#modalTitle");
 const modalBody    = document.querySelector("#modalBody");
 const modalClose   = document.querySelector("#modalClose");
 
-const copyTextBtn  = document.querySelector("#copyTextBtn"); // 司儀稿專用（預設 hidden，app.js 再顯示）
+const copyTextBtn  = document.querySelector("#copyTextBtn"); // 司儀稿專用
 const openDocBtn   = document.querySelector("#openDocBtn");  // 司儀稿=開 Docs；敘獎單=開 Sheet
 const openPdfBtn   = document.querySelector("#openPdfBtn");  // 司儀稿/敘獎單 都下載 PDF
-
 if (modalClose) modalClose.onclick = () => modal.classList.remove("active");
-
 
 /* ========= 小工具 ========= */
 function toast(msg){ alert(msg); }
@@ -102,7 +100,7 @@ async function copyTextToClipboard(text){
   }
 }
 
-/* ========= 司儀稿：同場快取，避免重複產檔 ========= */
+/* ========= 司儀稿：同場快取 ========= */
 let emceeCache = null; // { text, docUrl, pdfUrl, fileName }
 function resetEmceeCache(){ emceeCache = null; }
 async function ensureEmceeExport(text){
@@ -112,8 +110,70 @@ async function ensureEmceeExport(text){
   return emceeCache;
 }
 
+/* ========= 預覽 HTML 生成 ========= */
+/** 司儀稿（每原因一段落） */
+function buildEmceePreviewHTML(sel){
+  const byReason = {};
+  sel.forEach(r=>{
+    const reason = (r.事由||"").trim();
+    if(!byReason[reason]) byReason[reason] = [];
+    byReason[reason].push(r);
+  });
+  const parts = Object.entries(byReason).map(([reason, list])=>{
+    const seg = list.map(x=>{
+      const cls  = x.班級 ? `${x.班級}班` : "";
+      const rank = x.成績 ? `榮獲${x.成績}` : "";
+      return `${cls}${x.姓名}${rank}`;
+    }).join("、");
+    return `${reason}：${seg}，恭請校長頒獎。`;
+  });
+
+  const text = parts.join("\n");
+  const html = `
+    <div class="award-card">
+      <div class="award-title">🏆 頒獎典禮司儀稿（自動彙整）</div>
+      <div class="award-tip">貼到 Google 文件可再微調。</div>
+      <div class="award-desc" style="line-height:1.9">${parts.map(p=>`<p>${p}</p>`).join("")}</div>
+    </div>
+  `;
+  return { html, text };
+}
+
+/** 敘獎單（條列摘要，而非表格） */
+function buildAwardPreviewHTML(sel){
+  const total = sel.length;
+  const cut = Math.min(total, AWARD_WRITE_LIMIT);
+  const list = sel.slice(0, cut).map(r=>{
+    const cls  = (r.班級||"").trim();
+    const seat = (r.座號||"").trim();
+    const name = (r.姓名||"").trim();
+    const reason = (r.事由||"").trim();
+    const rank = (r.成績||"").trim();
+    const reward = (r.獎懲種類||"").trim();
+    const reasonRank = reason + (rank ? `（${rank}）` : "");
+    const rewardText = reward ? `；建議獎懲：${reward}` : "";
+    // 例：701班15號 王小明－英語朗讀比賽（第一名）；建議獎懲：嘉獎一支
+    return `<li>${cls || "—"}班${seat || "—"}號 ${name || "—"}－${reasonRank || "—"}${rewardText}</li>`;
+  }).join("");
+
+  const tip = total > AWARD_WRITE_LIMIT
+    ? `下列為即將匯入範本的摘要（共 ${total} 筆，將輸出前 ${AWARD_WRITE_LIMIT} 筆）：`
+    : `下列為即將匯入範本的摘要（共 ${total} 筆）：`;
+
+  const html = `
+    <div class="award-card">
+      <div class="award-title">📄 獎懲建議表（預覽）</div>
+      <div class="award-tip">${tip}</div>
+      <div class="award-desc">
+        <ul style="margin:0; padding-left:1.2em; line-height:1.8">${list}</ul>
+      </div>
+    </div>
+  `;
+  return { html };
+}
+
 /* ========= Modal 入口 =========
-   options = { type:'emcee'|'award', rows, html, text, sheetUrl?, pdfUrl?, docUrl?, fileName? }
+   options = { type:'emcee'|'award', rows, html, text }
 */
 function openPreviewModal(options){
   if (!modal || !openDocBtn || !openPdfBtn) { console.error("Modal/Btn 缺少節點"); return; }
@@ -125,27 +185,26 @@ function openPreviewModal(options){
   modalBody.innerHTML    = html || "";
   modal.classList.add("active");
 
-  // ---- reset（保留三鍵同時顯示，但先清狀態）----
+  // reset 三鍵
   if (copyTextBtn){
-    copyTextBtn.onclick   = null;
-    copyTextBtn.disabled  = false;     // 預設啟用，依模式再調整
-    copyTextBtn.title     = "";
+    copyTextBtn.onclick  = null;
+    copyTextBtn.disabled = false;
+    copyTextBtn.title    = "";
+    copyTextBtn.style.display = ""; // 先顯示，視模式再調整
   }
-  openDocBtn.onclick = null;
-  openPdfBtn.onclick = null;
-  openDocBtn.disabled = false;
-  openPdfBtn.disabled = false;
+  openDocBtn.onclick = null; openPdfBtn.onclick = null;
+  openDocBtn.disabled = false; openPdfBtn.disabled = false;
 
   if (type === "emcee"){
-    // 司儀稿：三鍵都可用
+    // 司儀稿：三鍵都可用；複製文字顯示可用
     if (copyTextBtn){
-      copyTextBtn.textContent = "複製文字";
-      copyTextBtn.disabled    = false;
-      copyTextBtn.title       = "複製到剪貼簿";
-      copyTextBtn.onclick     = () => copyTextToClipboard(text || "");
+      copyTextBtn.textContent = "📋 複製文字";
+      copyTextBtn.classList.add("success");
+      copyTextBtn.onclick = () => copyTextToClipboard(text || "");
+      copyTextBtn.style.display = ""; // 顯示
     }
-    openDocBtn.textContent = "開啟 Google 文件";
-    openPdfBtn.textContent = "匯出 PDF";
+    openDocBtn.textContent = "📄 開啟 Google 文件";
+    openPdfBtn.textContent = "📑 匯出 PDF";
 
     openDocBtn.onclick = async ()=>{
       try{
@@ -172,13 +231,13 @@ function openPreviewModal(options){
     };
 
   } else {
-    // 敘獎單：保留三鍵顯示，但「複製文字」禁用（或改成複製別的內容也行）
+    // 敘獎單：隱藏複製文字鈕（司儀稿限定）
     if (copyTextBtn){
-      copyTextBtn.disabled = true;
-      copyTextBtn.title    = "僅司儀稿可用";
+      copyTextBtn.style.display = "none";
+      copyTextBtn.onclick = null;
     }
-    openDocBtn.textContent = "匯出試算表";
-    openPdfBtn.textContent = "匯出 PDF";
+    openDocBtn.textContent = "📄 匯出試算表";
+    openPdfBtn.textContent = "📑 匯出 PDF";
 
     openDocBtn.onclick = async ()=>{
       try{
@@ -206,8 +265,6 @@ function openPreviewModal(options){
     };
   }
 }
-
-
 
 /* ========= 名單渲染 ========= */
 let rows = []; // {id, 班級, 座號, 姓名, 事由, 成績, 獎懲種類, 發生日期}
@@ -238,34 +295,6 @@ function getSelectedRows(){
   return rows.filter(r=>ids.includes(r.id));
 }
 
-/* ========= 司儀稿內容生成 ========= */
-function buildEmceePreviewHTML(sel){
-  const byReason = {};
-  sel.forEach(r=>{
-    const reason = (r.事由||"").trim();
-    if(!byReason[reason]) byReason[reason] = [];
-    byReason[reason].push(r);
-  });
-  const parts = Object.entries(byReason).map(([reason, list])=>{
-    const seg = list.map(x=>{
-      const cls  = x.班級 ? `${x.班級}班` : "";
-      const rank = x.成績 ? `榮獲${x.成績}` : "";
-      return `${cls}${x.姓名}${rank}`;
-    }).join("、");
-    return `${reason}：${seg}，恭請校長頒獎。`;
-  });
-
-  const text = parts.join("\n");
-  const html = `
-    <div class="award-card">
-      <div class="award-title">🏆 頒獎典禮司儀稿（自動彙整）</div>
-      <div class="award-tip">貼到 Google 文件可再微調。</div>
-      <div class="award-desc" style="line-height:1.9">${parts.map(p=>`<p>${p}</p>`).join("")}</div>
-    </div>
-  `;
-  return { html, text };
-}
-
 /* ========= 事件 ========= */
 if (btnAdd) btnAdd.onclick = async ()=>{
   if(!cClass.value || !cSeat.value || !cName.value){ toast("請先填『班級 / 座號 / 姓名』"); return; }
@@ -279,7 +308,7 @@ if (btnAdd) btnAdd.onclick = async ()=>{
     成績: cRank.value.trim(),
     獎懲種類: cAward.value.trim()
   };
-  rows.unshift(rec); render(); resetEmceeCache(); // 新增名單後，避免快取舊稿
+  rows.unshift(rec); render(); resetEmceeCache();
 
   try{
     const form = new URLSearchParams();
@@ -308,11 +337,7 @@ if (btnAward) btnAward.onclick = ()=>{
   const sel = getSelectedRows();
   if(!sel.length) return toast("請先勾選至少一筆。");
   if (sel.length > AWARD_WRITE_LIMIT) toast(`目前範本僅寫入第 4–15 列，共 ${AWARD_WRITE_LIMIT} 筆；已選 ${sel.length} 筆，將只輸出前 ${AWARD_WRITE_LIMIT} 筆。`);
-  const html = `
-    <div class="award-card">
-      <div class="award-title">📄 獎懲建議表（預覽）</div>
-      <div class="award-tip">確認內容後再按下方按鈕產生正式文件。</div>
-    </div>`;
+  const { html } = buildAwardPreviewHTML(sel);
   openPreviewModal({ type:"award", rows:sel, html });
 };
 
