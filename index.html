@@ -17,31 +17,39 @@
     body{margin:0;background:var(--bg);font-family: system-ui,-apple-system,"Microsoft JhengHei",sans-serif;color:#111}
     .wrap{max-width:1200px;margin:28px auto;padding:0 16px}
     .row{display:grid;grid-template-columns: 340px 1fr;gap:18px}
+
     h1{
-      font-size:32px;margin:0;font-weight:800;letter-spacing:.02em;display:flex;align-items:flex-end;line-height:1;
+      font-size:32px;margin:0;font-weight:800;letter-spacing:.02em;
+      display:flex;align-items:flex-end;line-height:1;
     }
     h1 .icon{font-size:1.3em;margin-right:8px;line-height:1;position:relative;top:2px}
+
     .top{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
     .badge{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--border);background:#fff;padding:8px 12px;border-radius:999px;color:#111;cursor:pointer}
     .badge.success{background:#10b981;color:#fff;border-color:#10b981}
+
     .card{background:#fff;border:1px solid var(--border);border-radius:14px;padding:16px}
     .left .field{margin-bottom:14px}
     .label{font-size:13px;color:var(--muted);margin-bottom:6px}
     .input,.select,textarea{width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:#fff}
     textarea{min-height:96px;resize:vertical}
+
     .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:1px solid var(--border);background:#fff;border-radius:10px;padding:10px 14px;cursor:pointer}
     .btn:disabled{opacity:.45;cursor:not-allowed}
     .btn.primary{background:var(--brand);border-color:var(--brand);color:#fff}
     .btn.primary:hover{background:var(--brand-600);border-color:var(--brand-600)}
     .btn.danger{background:var(--danger);border-color:var(--danger);color:#fff}
     .btn-row{display:flex;gap:10px;margin-bottom:10px}
+
     .tools{display:flex;align-items:center;gap:10px}
     .spacer{flex:1}
+
     .tbl{width:100%;border-collapse:collapse}
     .tbl th,.tbl td{border-bottom:1px solid var(--border);padding:10px 12px;text-align:left}
     .tbl thead th{font-size:13px;color:var(--muted);font-weight:700}
     .right .card{padding:12px}
     .muted{color:var(--muted)}
+
     /* Award preview */
     .award-card{border:1px solid var(--border);border-radius:12px;padding:16px;background:#fff}
     .award-title{font-size:18px;font-weight:800;letter-spacing:.02em;margin:0 0 6px}
@@ -54,6 +62,7 @@
     .award-badge{font-size:12px;background:#f3f4f6;border-radius:999px;padding:3px 10px}
     .award-name{font-weight:700}
     .award-desc{line-height:1.7}
+
     /* Modal */
     .modal{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.35);padding:16px}
     .modal.active{display:flex}
@@ -61,6 +70,9 @@
     .modal .hd{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--border)}
     .modal .bd{padding:16px;max-height:60vh;overflow:auto}
     .modal .ft{display:flex;gap:10px;justify-content:flex-end;padding:12px 16px;border-top:1px solid var(--border)}
+
+    /* 三鍵版：預設隱藏「複製文字」，在司儀稿模式由 app.js 顯示 */
+    #copyTextBtn{display:none}
   </style>
 </head>
 <body>
@@ -156,8 +168,9 @@
       </div>
       <div class="bd" id="modalBody"></div>
       <div class="ft">
-        <!-- 文字僅為預設，實際會由 app.js 依模式覆蓋 -->
-        <button id="openDocBtn" class="btn primary">開啟文件</button>
+        <!-- 三鍵：複製文字 / 開啟 Google 文件 / 匯出 PDF -->
+        <button id="copyTextBtn" class="btn">複製文字</button>
+        <button id="openDocBtn" class="btn primary">開啟 Google 文件</button>
         <button id="openPdfBtn" class="btn primary">匯出 PDF</button>
       </div>
     </div>
