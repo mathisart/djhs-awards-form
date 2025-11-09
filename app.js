@@ -1,3 +1,4 @@
+<!-- app.js -->
 /* ========= 基本設定 ========= */
 const WEB_APP_URL = (window.APP_CONFIG && window.APP_CONFIG.WEB_APP_URL) || "";
 const AWARD_WRITE_LIMIT = 12;
@@ -27,9 +28,9 @@ const modalTitle   = document.querySelector("#modalTitle");
 const modalBody    = document.querySelector("#modalBody");
 const modalClose   = document.querySelector("#modalClose");
 
-const copyTextBtn  = document.querySelector("#copyTextBtn"); // 司儀稿專用
-const openDocBtn   = document.querySelector("#openDocBtn");  // 司儀稿=開 Docs；敘獎單=開 Sheet
-const openPdfBtn   = document.querySelector("#openPdfBtn");  // 司儀稿/敘獎單 都下載 PDF
+const copyTextBtn  = document.querySelector("#copyTextBtn");
+const openDocBtn   = document.querySelector("#openDocBtn");
+const openPdfBtn   = document.querySelector("#openPdfBtn");
 if (modalClose) modalClose.onclick = () => modal.classList.remove("active");
 
 /* ========= 小工具 ========= */
@@ -53,9 +54,15 @@ function buildFilenameFromRows(rows){
 
 /* ========= 後端 API ========= */
 async function apiPost(formParams){
-  const res = await fetch(WEB_APP_URL, { method:"POST", body:formParams, mode:"cors", cache:"no-store" });
+  const res = await fetch(WEB_APP_URL, {
+    method:"POST",
+    mode:"cors",
+    cache:"no-store",
+    headers:{ "Content-Type":"application/x-www-form-urlencoded;charset=UTF-8" },
+    body: formParams
+  });
   const txt = await res.text();
-  try { return JSON.parse(txt); } catch { return { status:"error", message:"非 JSON 回應" }; }
+  try { return JSON.parse(txt); } catch { return { status:"error", message:"非 JSON 回應", raw:txt }; }
 }
 
 /** 敘獎單（試算表+PDF） */
@@ -71,7 +78,7 @@ async function createAwardDoc(rows){
   throw new Error((j && j.message) || "建立敘獎單失敗");
 }
 
-/** 司儀稿：建立 Google 文件 + PDF（字級18px、微軟正黑體、行距1.8） */
+/** 司儀稿：建立 Google 文件 + PDF（字級約 18px、行距 1.8） */
 async function createEmceeDoc(text){
   const form = new URLSearchParams();
   form.set("action","create_emcee_doc");
@@ -111,7 +118,6 @@ async function ensureEmceeExport(text){
 }
 
 /* ========= 預覽 HTML 生成 ========= */
-/** 司儀稿（每原因一段落） */
 function buildEmceePreviewHTML(sel){
   const byReason = {};
   sel.forEach(r=>{
@@ -139,7 +145,6 @@ function buildEmceePreviewHTML(sel){
   return { html, text };
 }
 
-/** 敘獎單（條列摘要，而非表格） */
 function buildAwardPreviewHTML(sel){
   const total = sel.length;
   const cut = Math.min(total, AWARD_WRITE_LIMIT);
@@ -152,7 +157,6 @@ function buildAwardPreviewHTML(sel){
     const reward = (r.獎懲種類||"").trim();
     const reasonRank = reason + (rank ? `（${rank}）` : "");
     const rewardText = reward ? `；建議獎懲：${reward}` : "";
-    // 例：701班15號 王小明－英語朗讀比賽（第一名）；建議獎懲：嘉獎一支
     return `<li>${cls || "—"}班${seat || "—"}號 ${name || "—"}－${reasonRank || "—"}${rewardText}</li>`;
   }).join("");
 
@@ -172,9 +176,7 @@ function buildAwardPreviewHTML(sel){
   return { html };
 }
 
-/* ========= Modal 入口 =========
-   options = { type:'emcee'|'award', rows, html, text }
-*/
+/* ========= Modal 入口 ========= */
 function openPreviewModal(options){
   if (!modal || !openDocBtn || !openPdfBtn) { console.error("Modal/Btn 缺少節點"); return; }
 
@@ -185,23 +187,21 @@ function openPreviewModal(options){
   modalBody.innerHTML    = html || "";
   modal.classList.add("active");
 
-  // reset 三鍵
   if (copyTextBtn){
     copyTextBtn.onclick  = null;
     copyTextBtn.disabled = false;
     copyTextBtn.title    = "";
-    copyTextBtn.style.display = ""; // 先顯示，視模式再調整
+    copyTextBtn.style.display = "";
   }
   openDocBtn.onclick = null; openPdfBtn.onclick = null;
   openDocBtn.disabled = false; openPdfBtn.disabled = false;
 
   if (type === "emcee"){
-    // 司儀稿：三鍵都可用；複製文字顯示可用
     if (copyTextBtn){
       copyTextBtn.textContent = "📋 複製文字";
       copyTextBtn.classList.add("success");
       copyTextBtn.onclick = () => copyTextToClipboard(text || "");
-      copyTextBtn.style.display = ""; // 顯示
+      copyTextBtn.style.display = "";
     }
     openDocBtn.textContent = "📄 開啟 Google 文件";
     openPdfBtn.textContent = "📑 匯出 PDF";
@@ -231,7 +231,6 @@ function openPreviewModal(options){
     };
 
   } else {
-    // 敘獎單：隱藏複製文字鈕（司儀稿限定）
     if (copyTextBtn){
       copyTextBtn.style.display = "none";
       copyTextBtn.onclick = null;
@@ -303,7 +302,7 @@ if (btnAdd) btnAdd.onclick = async ()=>{
     班級: cClass.value.trim(),
     座號: cSeat.value.trim(),
     姓名: cName.value.trim(),
-    發生日期: cDate.value.trim(),
+    發生日期: (cDate.value||"").trim(),
     事由: cReason.value.trim(),
     成績: cRank.value.trim(),
     獎懲種類: cAward.value.trim()
@@ -312,9 +311,11 @@ if (btnAdd) btnAdd.onclick = async ()=>{
 
   try{
     const form = new URLSearchParams();
+    form.set("action","add_record");
+    form.set("id", rec.id);
     form.set("班級",rec.班級); form.set("座號",rec.座號); form.set("姓名",rec.姓名);
-    form.set("發生日期",rec.發生日期); form.set("事由",rec.事由); form.set("成績", rec.成績); 
-    form.set("獎懲種類",rec.獎懲種類); form.set("action","add_record");
+    form.set("發生日期",rec.發生日期); form.set("事由",rec.事由); form.set("成績", rec.成績);
+    form.set("獎懲種類",rec.獎懲種類);
     const j = await apiPost(form);
     if (!(j && (j.ok || j.status==="success"))) toast("已加入名單，但寫入試算表未確認成功。");
   }catch(e){ console.error(e); toast("已加入名單，但寫入試算表失敗。"); }
@@ -350,12 +351,20 @@ async function pingBackend() {
   const withTimeout = (p,ms=5000)=>Promise.race([p,new Promise((_,rej)=>setTimeout(()=>rej(new Error("timeout")),ms))]);
   let ok = false;
   try{
-    try{ const url = WEB_APP_URL + (WEB_APP_URL.includes("?")?"&":"?") + "_t=" + Date.now();
-      await withTimeout(fetch(url,{method:"GET",mode:"no-cors",cache:"no-store"}),5000); ok = true; }catch{}
+    try{
+      const url = WEB_APP_URL + (WEB_APP_URL.includes("?")?"&":"?") + "_t=" + Date.now();
+      await withTimeout(fetch(url,{method:"GET",mode:"no-cors",cache:"no-store"}),5000);
+      ok = true;
+    }catch{}
     if (!ok){
       try{
-        const r = await withTimeout(fetch(WEB_APP_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"ping",_t:Date.now()})}),5000);
-        const j = await r.json().catch(()=>null); ok = j && (j.ok || j.status==="success" || j.status==="ok");
+        const r = await withTimeout(fetch(WEB_APP_URL,{
+          method:"POST",
+          headers:{"Content-Type":"application/json"},
+          body:JSON.stringify({action:"ping",_t:Date.now()})
+        }),5000);
+        const j = await r.json().catch(()=>null);
+        ok = j && (j.ok || j.status==="success" || j.status==="ok");
       }catch{}
     }
   }catch{}
