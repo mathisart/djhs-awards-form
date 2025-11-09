@@ -116,7 +116,10 @@ async function ensureEmceeExport(text){
    options = { type:'emcee'|'award', rows, html, text, sheetUrl?, pdfUrl?, docUrl?, fileName? }
 */
 function openPreviewModal(options){
-  if (!modal || !openDocBtn || !openPdfBtn) { console.error("Modal/Btn 缺少節點"); return; }
+  if (!modal || !openDocBtn || !openPdfBtn) {
+    console.error("Modal/Btn 缺少節點"); 
+    return;
+  }
 
   const { type, rows, html, text } = options || {};
   const filename = buildFilenameFromRows(rows);
@@ -125,23 +128,30 @@ function openPreviewModal(options){
   modalBody.innerHTML    = html || "";
   modal.classList.add("active");
 
-  // reset（包含第三顆按鈕）
-  if (copyTextBtn){ copyTextBtn.onclick = null; copyTextBtn.style.display = "none"; copyTextBtn.disabled = false; }
-  openDocBtn.onclick = null; openPdfBtn.onclick = null;
-  openDocBtn.disabled = false; openPdfBtn.disabled = false;
+  // reset
+  if (copyTextBtn){
+    copyTextBtn.onclick = null;
+    copyTextBtn.style.display = "none";    // 先隱藏，司儀稿模式才顯示
+    copyTextBtn.disabled = false;
+  }
+  openDocBtn.onclick = null;
+  openPdfBtn.onclick = null;
+  openDocBtn.disabled = false;
+  openPdfBtn.disabled = false;
 
   if (type === "emcee"){
-    // 顯示第三顆「複製文字」按鈕
+    // 顯示第三顆「複製文字」
     if (copyTextBtn){
-      copyTextBtn.style.display = "";
+      copyTextBtn.style.display = "";      // 解除隱藏
       copyTextBtn.textContent = "複製文字";
       copyTextBtn.onclick = () => copyTextToClipboard(text || "");
     }
 
-    // 司儀稿：openDoc=開 Docs；openPdf=下載 PDF（共用同一次後端產檔）
+    // 司儀稿：openDoc = 建檔(如未建)並開 Google 文件；openPdf = 同檔下載 PDF
     openDocBtn.textContent = "開啟 Google 文件";
     openPdfBtn.textContent = "匯出 PDF";
 
+    // 避免重複產檔：用快取
     openDocBtn.onclick = async ()=>{
       try{
         openDocBtn.disabled = true;
@@ -149,8 +159,11 @@ function openPreviewModal(options){
         if (out && out.docUrl) window.open(out.docUrl, "_blank");
         else toast("無法取得 Google 文件連結。");
       }catch(e){
-        console.error(e); toast("建立文件失敗，請稍後再試。");
-      }finally{ openDocBtn.disabled = false; }
+        console.error(e);
+        toast("建立文件失敗，請稍後再試。");
+      }finally{
+        openDocBtn.disabled = false;
+      }
     };
 
     openPdfBtn.onclick = async ()=>{
@@ -161,31 +174,41 @@ function openPreviewModal(options){
           const a = document.createElement("a");
           a.href = out.pdfUrl;
           a.download = (out.fileName || filename) + ".pdf";
-          document.body.appendChild(a); a.click(); a.remove();
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
         }else{
           toast("無法取得 PDF 連結。");
         }
       }catch(e){
-        console.error(e); toast("建立 PDF 失敗，請稍後再試。");
-      }finally{ openPdfBtn.disabled = false; }
+        console.error(e);
+        toast("建立 PDF 失敗，請稍後再試。");
+      }finally{
+        openPdfBtn.disabled = false;
+      }
     };
 
   } else {
-    // 敘獎單：openDoc=開啟試算表；openPdf=下載後端 PDF
+    // 敘獎單模式：隱藏複製鍵；openDoc=開 Sheet；openPdf=載 PDF
     if (copyTextBtn) copyTextBtn.style.display = "none";
     openDocBtn.textContent = "匯出試算表";
     openPdfBtn.textContent = "匯出 PDF";
 
     openDocBtn.onclick = async ()=>{
       try{
-        if (options.docUrl || options.sheetUrl) return window.open(options.docUrl || options.sheetUrl, "_blank");
+        if (options.docUrl || options.sheetUrl) {
+          return window.open(options.docUrl || options.sheetUrl, "_blank");
+        }
         openDocBtn.disabled = true;
         const out = await createAwardDoc(rows.slice(0, AWARD_WRITE_LIMIT));
         if (out.docUrl || out.sheetUrl) window.open(out.docUrl || out.sheetUrl, "_blank");
         else toast("無法取得試算表連結。");
       }catch(e){
-        console.error(e); toast("建立試算表失敗，請稍後再試。");
-      }finally{ openDocBtn.disabled = false; }
+        console.error(e);
+        toast("建立試算表失敗，請稍後再試。");
+      }finally{
+        openDocBtn.disabled = false;
+      }
     };
 
     openPdfBtn.onclick = async ()=>{
@@ -196,16 +219,22 @@ function openPreviewModal(options){
           const a = document.createElement("a");
           a.href = out.pdfUrl;
           a.download = (out.fileName || "獎懲公告") + ".pdf";
-          document.body.appendChild(a); a.click(); a.remove();
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
         } else {
           toast("無法取得 PDF 連結。");
         }
       }catch(e){
-        console.error(e); toast("建立 PDF 失敗，請稍後再試。");
-      }finally{ openPdfBtn.disabled = false; }
+        console.error(e);
+        toast("建立 PDF 失敗，請稍後再試。");
+      }finally{
+        openPdfBtn.disabled = false;
+      }
     };
   }
 }
+
 
 /* ========= 名單渲染 ========= */
 let rows = []; // {id, 班級, 座號, 姓名, 事由, 成績, 獎懲種類, 發生日期}
