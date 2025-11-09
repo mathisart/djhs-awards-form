@@ -181,7 +181,7 @@ async function copyTextToClipboard(text){
 }
 
 /* ========= 預覽 Modal 入口 =========
-   options = { type:'emcee'|'award', rows, html, text, sheetUrl?, pdfUrl?, docUrl? }
+   options = { type:'emcee'|'award', rows, html, text, sheetUrl?, pdfUrl?, docUrl?, fileName? }
 */
 function openPreviewModal(options){
   const { type, rows, html, text } = options || {};
@@ -237,45 +237,50 @@ function openPreviewModal(options){
     };
 
     openPdfBtn.onclick = async () => {
-  try{
-    // 預設檔名（fallback）：獎懲公告_MM-dd
-    const pad = n => String(n).padStart(2,'0');
-    const now = new Date();
-    const fallbackName = `獎懲公告_${pad(now.getMonth()+1)}-${pad(now.getDate())}`;
-
-    const applyDownload = async (url, nameBase) => {
       try{
-        const r = await fetch(url, { mode:"cors" });
-        const b = await r.blob();
-        const a = document.createElement("a");
-        a.href = URL.createObjectURL(b);
-        a.download = `${nameBase || fallbackName}.pdf`; // ★ 這裡用固定命名
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        URL.revokeObjectURL(a.href);
-      }catch{
-        window.open(url, "_blank");
+        // 預設檔名（fallback）：獎懲公告_MM-dd
+        const pad = n => String(n).padStart(2,'0');
+        const now = new Date();
+        const fallbackName = `獎懲公告_${pad(now.getMonth()+1)}-${pad(now.getDate())}`;
+
+        const applyDownload = async (url, nameBase) => {
+          try{
+            const r = await fetch(url, { mode:"cors" });
+            const b = await r.blob();
+            const a = document.createElement("a");
+            a.href = URL.createObjectURL(b);
+            a.download = `${nameBase || fallbackName}.pdf`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(a.href);
+          }catch{
+            window.open(url, "_blank");
+          }
+        };
+
+        if (options.pdfUrl) {
+          // 已有 pdfUrl（例如先前產生） → 直接下載
+          return applyDownload(options.pdfUrl, options.fileName || fallbackName);
+        }
+
+        openPdfBtn.disabled = true;
+        const out = await createAwardDoc(rows);
+        const nameBase = (out && out.fileName) ? out.fileName : fallbackName; // 以後端 fileName 為主
+        if (out && out.pdfUrl) await applyDownload(out.pdfUrl, nameBase);
+        else toast("無法取得 PDF 連結。");
+
+      }catch(e){
+        console.error(e);
+        toast("建立 PDF 失敗，請稍後再試。");
+      }finally{
+        openPdfBtn.disabled = false;
       }
     };
+  } // ← 關閉 else
 
-    if (options.pdfUrl) {
-      return applyDownload(options.pdfUrl, fallbackName);
-    }
+} // ← 關閉 openPreviewModal
 
-    openPdfBtn.disabled = true;
-    const out = await createAwardDoc(rows);
-    const nameBase = (out && out.fileName) ? out.fileName : fallbackName; // ★ 以後端 fileName 為主
-    if (out && out.pdfUrl) await applyDownload(out.pdfUrl, nameBase);
-    else toast("無法取得 PDF 連結。");
-
-  }catch(e){
-    console.error(e);
-    toast("建立 PDF 失敗，請稍後再試。");
-  }finally{
-    openPdfBtn.disabled = false;
-  }
-};
 
 
 /* ========= 列表 & 名單 ========= */
