@@ -22,14 +22,17 @@ const cRank   = document.querySelector("#cRank");
 const cAward  = document.querySelector("#cAward");
 
 /* ========= Modal ========= */
-const modal       = document.querySelector("#modal");
-const modalTitle  = document.querySelector("#modalTitle");
-const modalBody   = document.querySelector("#modalBody");
-const modalClose  = document.querySelector("#modalClose");
-const copyTextBtn = document.querySelector("#copyTextBtn"); // 第三顆：複製文字（司儀稿用）
-const openDocBtn  = document.querySelector("#openDocBtn");  // 司儀稿=開 Docs；敘獎單=開試算表
-const openPdfBtn  = document.querySelector("#openPdfBtn");  // 司儀稿=下載 PDF；敘獎單=下載 PDF
+const modal        = document.querySelector("#modal");
+const modalTitle   = document.querySelector("#modalTitle");
+const modalBody    = document.querySelector("#modalBody");
+const modalClose   = document.querySelector("#modalClose");
+
+const copyTextBtn  = document.querySelector("#copyTextBtn"); // 司儀稿專用（預設 hidden，app.js 再顯示）
+const openDocBtn   = document.querySelector("#openDocBtn");  // 司儀稿=開 Docs；敘獎單=開 Sheet
+const openPdfBtn   = document.querySelector("#openPdfBtn");  // 司儀稿/敘獎單 都下載 PDF
+
 if (modalClose) modalClose.onclick = () => modal.classList.remove("active");
+
 
 /* ========= 小工具 ========= */
 function toast(msg){ alert(msg); }
