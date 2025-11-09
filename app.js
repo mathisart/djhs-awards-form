@@ -313,8 +313,8 @@ if (btnAdd) btnAdd.onclick = async ()=>{
   try{
     const form = new URLSearchParams();
     form.set("班級",rec.班級); form.set("座號",rec.座號); form.set("姓名",rec.姓名);
-    form.set("發生日期",rec.發生日期); form.set("事由",rec.事由); form.set("獎懲種類",rec.獎懲種類);
-    form.set("action","add_record");
+    form.set("發生日期",rec.發生日期); form.set("事由",rec.事由); form.set("成績", rec.成績); 
+    form.set("獎懲種類",rec.獎懲種類); form.set("action","add_record");
     const j = await apiPost(form);
     if (!(j && (j.ok || j.status==="success"))) toast("已加入名單，但寫入試算表未確認成功。");
   }catch(e){ console.error(e); toast("已加入名單，但寫入試算表失敗。"); }
