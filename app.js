@@ -34,16 +34,18 @@ function toast(msg){ alert(msg); }
 
 function sanitizeFilename(s){
   return (s || "")
-    .replace(/[\s　]+/g, "")
-    .replace(/[\/\\\?\%\*\:\|\"\<\>]/g, "")
+    .replace(/[\s　]+/g, "")                 // 去空白
+    .replace(/[\/\\\?\%\*\:\|\"\<\>]/g, "") // 禁字
     .slice(0, 60);
 }
+// 允許 rows 內鍵名為中文或英文
 function pick(obj, keys){
   for (const k of keys){
     if (obj[k] != null && String(obj[k]).trim() !== "") return String(obj[k]).trim();
   }
   return "";
 }
+// 檔名：班級 + 座號 + 事由；多筆：加 _等N筆
 function buildFilenameFromRows(rows){
   if (!rows || rows.length === 0) return "輸出文件";
   const r = rows[0];
@@ -54,7 +56,7 @@ function buildFilenameFromRows(rows){
   return (rows.length > 1) ? `${base}_等${rows.length}筆` : base;
 }
 
-/* ========= 司儀稿：前端 PDF ========= */
+/* ========= 司儀稿：前端 PDF（新分頁開啟） ========= */
 function ensureHtml2pdf(){
   return new Promise((resolve)=>{
     if (window.html2pdf) return resolve();
@@ -64,11 +66,10 @@ function ensureHtml2pdf(){
     document.head.appendChild(s);
   });
 }
-// 下載 → 開新分頁預覽（修正點 #2）
-async function exportEmceePdf(html, filename){
+async function exportEmceePdfNewTab(html, filename){
   await ensureHtml2pdf();
   const box = document.createElement("div");
-  box.style.width = "794px"; // A4 approximate width
+  box.style.width = "794px"; // A4 寬（約 96dpi）
   box.style.padding = "16px";
   box.innerHTML = html;
 
@@ -80,40 +81,70 @@ async function exportEmceePdf(html, filename){
     jsPDF: { unit:'mm', format:'a4', orientation:'portrait' }
   };
 
-  // 不直接 save；輸出 blob 後開新分頁
-  const blob = await html2pdf().from(box).set(opt).outputPdf('blob');
-  const url = URL.createObjectURL(blob);
-  window.open(url, "_blank");
-  setTimeout(()=>URL.revokeObjectURL(url), 60_000);
+  // 產生 Blob → 以 blob URL 在新分頁開啟
+  const worker = html2pdf().from(box).set(opt);
+  const blob   = await worker.outputPdf('blob');
+  const url    = URL.createObjectURL(blob);
+  window.open(url, '_blank');
+  setTimeout(()=> URL.revokeObjectURL(url), 60_000);
 }
 
 /* ========= 後端：建立敘獎單（試算表 & PDF） =========
-   使用 x-www-form-urlencoded，避免 CORS preflight
-   後端可能回兩種格式：
-   A) { ok:true, sheetUrl:'...', pdfUrl:'...' }
-   B) { status:'success', data:{ docUrl:'...', pdfUrl:'...' } }   // GAS 的 ok(urls) 版本
+   使用 x-www-form-urlencoded，避免 CORS 預檢
+   後端預期：
+     action=create_award_doc
+     rows=<JSON 字串陣列>
+   回傳 JSON（容忍多種鍵）：
+     { ok:true, sheetUrl:'...', pdfUrl:'...' }
+     或 { status:'success', sheetUrl:'...', pdfUrl:'...' }
 */
 async function createAwardDoc(rows){
   const form = new URLSearchParams();
   form.set("action", "create_award_doc");
   form.set("rows", JSON.stringify(rows));
 
-  const res  = await fetch(WEB_APP_URL, { method:"POST", body:form, mode:"cors", cache:"no-store" });
+  const res  = await fetch(WEB_APP_URL, {
+    method: "POST",
+    body:   form,
+    mode:   "cors",
+    cache:  "no-store",
+  });
+
   const txt  = await res.text();
   let data   = null;
-  try { data = JSON.parse(txt); } catch {}
+  try { data = JSON.parse(txt); } catch { /* 不是 JSON */ }
 
   if (!data) throw new Error("後端無回應或格式錯誤");
-
-  // ---- 兼容各種欄位名稱（修正點 #1）----
-  const okFlag   = data.ok || data.status === "success" || data.status === "ok";
-  const sheetUrl = data.sheetUrl || data.docUrl || (data.data && (data.data.sheetUrl || data.data.docUrl));
-  const pdfUrl   = data.pdfUrl   || (data.data && data.data.pdfUrl);
-
-  if (okFlag && (sheetUrl || pdfUrl)) {
-    return { ok:true, sheetUrl, pdfUrl };
+  if (data.ok || data.status === "success" || data.status === "ok") {
+    // 後端有時用 data.* 或頂層 *，都統一讀
+    const d = data.data || data;
+    return { ok:true, sheetUrl:d.sheetUrl, pdfUrl:d.pdfUrl, docUrl:d.docUrl };
   }
   throw new Error(data.message || "建立文件失敗");
+}
+
+/* ========= 後端：寫入〈獲獎名單〉（＋加入名單） =========
+   不設 Content-Type，讓 fetch 自動用 x-www-form-urlencoded，避開預檢
+   後端 doPost 會將同名欄位寫入（action 會被忽略）
+*/
+async function writeRecordToSheet(rec){
+  const form = new URLSearchParams();
+  form.set("班級", rec.班級 || "");
+  form.set("座號", rec.座號 || "");
+  form.set("姓名", rec.姓名 || "");
+  form.set("發生日期", rec.發生日期 || "");
+  form.set("事由", rec.事由 || "");
+  form.set("獎懲種類", rec.獎懲種類 || "");
+  // 附帶 action 但後端不依賴它（僅為語意註記）
+  form.set("action", "add_record");
+
+  const res = await fetch(WEB_APP_URL, { method:"POST", body:form, mode:"cors", cache:"no-store" });
+  const txt = await res.text();
+  try {
+    const j = JSON.parse(txt);
+    if (j.status === "success" || j.ok === true) return true;
+  } catch { /* 後端可能回純文字 */ }
+  return false;
 }
 
 /* ========= 共用：複製文字 ========= */
@@ -132,7 +163,9 @@ async function copyTextToClipboard(text){
   }
 }
 
-/* ========= 預覽 Modal 入口 ========= */
+/* ========= 預覽 Modal 入口 =========
+   options = { type:'emcee'|'award', rows, html, text, sheetUrl?, pdfUrl?, docUrl? }
+*/
 function openPreviewModal(options){
   const { type, rows, html, text } = options || {};
   const filename = buildFilenameFromRows(rows);
@@ -141,34 +174,42 @@ function openPreviewModal(options){
   modalBody.innerHTML    = html || "";
   modal.classList.add("active");
 
+  // 清事件
   openDocBtn.onclick = null;
   openPdfBtn.onclick = null;
   openDocBtn.disabled = false;
   openPdfBtn.disabled = false;
 
   if (type === "emcee"){
+    // 司儀稿：openDoc=複製文字；openPdf=前端 PDF（新分頁）
     openDocBtn.textContent = "複製文字";
     openPdfBtn.textContent = "匯出 PDF";
+
     openDocBtn.onclick = () => copyTextToClipboard(text || "");
     openPdfBtn.onclick = async () => {
       try{
         const htmlForPdf = html || `<div style="line-height:1.8;font-size:14px">${(text||"").replace(/\n/g,"<br>")}</div>`;
-        await exportEmceePdf(htmlForPdf, filename);
+        await exportEmceePdfNewTab(htmlForPdf, filename);
       }catch(e){
         console.error(e);
-        toast("匯出 PDF 失敗，請稍後再試。");
+        toast("開啟 PDF 失敗，請稍後再試。");
       }
     };
+
   } else {
+    // 敘獎單：openDoc=匯出試算表；openPdf=後端 PDF
     openDocBtn.textContent = "匯出試算表";
     openPdfBtn.textContent = "匯出 PDF";
 
     openDocBtn.onclick = async () => {
       try{
-        if (options.sheetUrl) return window.open(options.sheetUrl, "_blank");
+        // 若已有連結就直接開
+        if (options.docUrl || options.sheetUrl) {
+          return window.open(options.docUrl || options.sheetUrl, "_blank");
+        }
         openDocBtn.disabled = true;
         const out = await createAwardDoc(rows);
-        if (out.sheetUrl) window.open(out.sheetUrl, "_blank");
+        if (out.docUrl || out.sheetUrl) window.open(out.docUrl || out.sheetUrl, "_blank");
         else toast("無法取得試算表連結。");
       }catch(e){
         console.error(e);
@@ -191,6 +232,7 @@ function openPreviewModal(options){
             document.body.appendChild(a);
             a.click();
             a.remove();
+            URL.revokeObjectURL(a.href);
           }catch{
             window.open(url, "_blank");
           }
@@ -213,7 +255,7 @@ function openPreviewModal(options){
 }
 
 /* ========= 列表 & 名單 ========= */
-let rows = []; // {id, 班級, 座號, 姓名, 事由, 成績, 獎懲種類}
+let rows = []; // {id, 班級, 座號, 姓名, 事由, 成績, 獎懲種類, 發生日期}
 
 function render(){
   const q = (inputQ.value||"").trim().toLowerCase();
@@ -225,7 +267,7 @@ function render(){
 
   tb.innerHTML = list.map(r=>`
     <tr data-id="${r.id}">
-      <td><input class="row-check" type="checkbox" checked></td>
+      <td><input class="row-check" type="checkbox"></td>
       <td>${r.班級||""}</td>
       <td>${r.座號||""}</td>
       <td>${r.姓名||""}</td>
@@ -247,6 +289,7 @@ function getSelectedRows(){
 }
 
 /* ========= 預覽內容產生器 ========= */
+// 司儀稿（卡片 + 一行式彙整）
 function buildEmceePreviewHTML(sel){
   const byReason = {};
   sel.forEach(r=>{
@@ -274,6 +317,7 @@ function buildEmceePreviewHTML(sel){
   return { html, text };
 }
 
+// 敘獎單（卡片）
 function buildAwardPreviewHTML(sel){
   const badge = (t)=>`<span class="award-badge">${t}</span>`;
   const items = sel.map(r=>`
@@ -294,22 +338,37 @@ function buildAwardPreviewHTML(sel){
 }
 
 /* ========= 事件 ========= */
-btnAdd.onclick = ()=>{
+btnAdd.onclick = async ()=>{
   if(!cClass.value || !cSeat.value || !cName.value){
     toast("請先填『班級 / 座號 / 姓名』");
     return;
   }
-  rows.unshift({
+
+  const rec = {
     id: crypto.randomUUID(),
     班級: cClass.value.trim(),
     座號: cSeat.value.trim(),
     姓名: cName.value.trim(),
-    發生日期: cDate.value || "",    // 也帶進去，後端會拆月/日
+    發生日期: cDate.value.trim(),
     事由: cReason.value.trim(),
     成績: cRank.value.trim(),
     獎懲種類: cAward.value.trim()
-  });
+  };
+
+  // 1) 先寫入前端名單並顯示
+  rows.unshift(rec);
   render();
+
+  // 2) 後台寫入 Google 試算表（非阻塞，但給回饋）
+  try{
+    const ok = await writeRecordToSheet(rec);
+    if (!ok) toast("已加入名單，但寫入試算表未確認成功。");
+  }catch(e){
+    console.error(e);
+    toast("已加入名單，但寫入試算表失敗。");
+  }
+
+  // 清空（保留班級）
   cSeat.value=""; cName.value=""; cReason.value=""; cRank.value="";
 };
 
@@ -336,26 +395,34 @@ btnAward.onclick = ()=>{
   openPreviewModal({ type:"award", rows:sel, html });
 };
 
-/* ========= 單一徽章：後端連線檢查 ========= */
+/* ========= 單一徽章：後端連線檢查（加強版） ========= */
 async function pingBackend() {
   if (!connBadge) return;
   connBadge.classList.remove("success");
   connBadge.textContent = "後端連線狀態檢查中…";
 
+  // 1) 未設定
   if (!WEB_APP_URL || !/^https?:\/\//i.test(WEB_APP_URL)) {
     connBadge.textContent = "未設定後端網址";
     connBadge.classList.remove("success");
     return;
   }
+
+  // 小工具：加上逾時
   const withTimeout = (p, ms=5000) =>
     Promise.race([ p, new Promise((_,rej)=>setTimeout(()=>rej(new Error("timeout")), ms)) ]);
+
   let ok = false;
+
   try {
+    // 2) 先 GET no-cors（只要可連就視為成功）
     try {
       const url = WEB_APP_URL + (WEB_APP_URL.includes("?") ? "&" : "?") + "_t=" + Date.now();
       await withTimeout(fetch(url, { method:"GET", mode:"no-cors", cache:"no-store" }), 5000);
       ok = true;
     } catch (_) {}
+
+    // 3) 再試 POST(JSON)
     if (!ok) {
       try {
         const r = await withTimeout(fetch(WEB_APP_URL, {
@@ -367,6 +434,8 @@ async function pingBackend() {
         ok = j && (j.ok || j.status === "success" || j.status === "ok");
       } catch (_) {}
     }
+
+    // 4) 最後 POST(form)
     if (!ok) {
       try {
         const form = new URLSearchParams();
@@ -380,9 +449,10 @@ async function pingBackend() {
   } catch (_) {
     ok = false;
   }
+
   if (ok) {
     connBadge.textContent = "後端連線成功";
-    connBadge.classList.add("success");
+    connBadge.classList.add("success"); // 綠底白字
   } else {
     connBadge.textContent = "後端連線失敗";
     connBadge.classList.remove("success");
