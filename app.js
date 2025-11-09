@@ -22,13 +22,13 @@ const cRank   = document.querySelector("#cRank");
 const cAward  = document.querySelector("#cAward");
 
 /* ========= Modal ========= */
-const modal        = document.querySelector("#modal");
-const modalTitle   = document.querySelector("#modalTitle");
-const modalBody    = document.querySelector("#modalBody");
-const modalClose   = document.querySelector("#modalClose");
-const copyTextBtn  = document.querySelector("#copyTextBtn"); // 司儀稿專用（可選）
-const openDocBtn   = document.querySelector("#openDocBtn");  // 司儀稿=開 Docs；敘獎單=開試算表
-const openPdfBtn   = document.querySelector("#openPdfBtn");  // 司儀稿=下載 PDF；敘獎單=下載 PDF
+const modal       = document.querySelector("#modal");
+const modalTitle  = document.querySelector("#modalTitle");
+const modalBody   = document.querySelector("#modalBody");
+const modalClose  = document.querySelector("#modalClose");
+const copyTextBtn = document.querySelector("#copyTextBtn"); // 第三顆：複製文字（司儀稿用）
+const openDocBtn  = document.querySelector("#openDocBtn");  // 司儀稿=開 Docs；敘獎單=開試算表
+const openPdfBtn  = document.querySelector("#openPdfBtn");  // 司儀稿=下載 PDF；敘獎單=下載 PDF
 if (modalClose) modalClose.onclick = () => modal.classList.remove("active");
 
 /* ========= 小工具 ========= */
@@ -70,7 +70,7 @@ async function createAwardDoc(rows){
   throw new Error((j && j.message) || "建立敘獎單失敗");
 }
 
-/** 司儀稿：建立 Google 文件 + 回傳 PDF 下載連結（字級18px、微軟正黑體、行距1.8） */
+/** 司儀稿：建立 Google 文件 + PDF（字級18px、微軟正黑體、行距1.8） */
 async function createEmceeDoc(text){
   const form = new URLSearchParams();
   form.set("action","create_emcee_doc");
@@ -122,20 +122,20 @@ function openPreviewModal(options){
   modalBody.innerHTML    = html || "";
   modal.classList.add("active");
 
-  // reset
+  // reset（包含第三顆按鈕）
   if (copyTextBtn){ copyTextBtn.onclick = null; copyTextBtn.style.display = "none"; copyTextBtn.disabled = false; }
   openDocBtn.onclick = null; openPdfBtn.onclick = null;
   openDocBtn.disabled = false; openPdfBtn.disabled = false;
 
   if (type === "emcee"){
-    // 顯示第三顆「複製文字」按鈕（若 index.html 有配置）
+    // 顯示第三顆「複製文字」按鈕
     if (copyTextBtn){
       copyTextBtn.style.display = "";
       copyTextBtn.textContent = "複製文字";
       copyTextBtn.onclick = () => copyTextToClipboard(text || "");
     }
 
-    // 司儀稿：openDoc=開 Docs；openPdf=下載 PDF（兩者共用同一次後端產檔）
+    // 司儀稿：openDoc=開 Docs；openPdf=下載 PDF（共用同一次後端產檔）
     openDocBtn.textContent = "開啟 Google 文件";
     openPdfBtn.textContent = "匯出 PDF";
 
