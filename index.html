@@ -17,16 +17,10 @@
     body{margin:0;background:var(--bg);font-family: system-ui,-apple-system,"Microsoft JhengHei",sans-serif;color:#111}
     .wrap{max-width:1200px;margin:28px auto;padding:0 16px}
     .row{display:grid;grid-template-columns: 340px 1fr;gap:18px}
-h1{  font-size:32px;  margin:0;  font-weight:800;  letter-spacing:.02em;  display:flex;
-  align-items:flex-end;   /* 讓 icon 與文字底部對齊 */
-  line-height:1;          /* 防止多餘空隙 */
-}
-
-h1 .icon{  font-size:1.3em;  margin-right:8px;
-  line-height:1;          /* 讓表情符號不多出空白 */
-  position:relative;
-  top:2px;                /* 微調校正，如覺得還沒對齊可調 1~3px */
-}
+    h1{
+      font-size:32px;margin:0;font-weight:800;letter-spacing:.02em;display:flex;align-items:flex-end;line-height:1;
+    }
+    h1 .icon{font-size:1.3em;margin-right:8px;line-height:1;position:relative;top:2px}
     .top{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
     .badge{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--border);background:#fff;padding:8px 12px;border-radius:999px;color:#111;cursor:pointer}
     .badge.success{background:#10b981;color:#fff;border-color:#10b981}
@@ -41,15 +35,13 @@ h1 .icon{  font-size:1.3em;  margin-right:8px;
     .btn.primary:hover{background:var(--brand-600);border-color:var(--brand-600)}
     .btn.danger{background:var(--danger);border-color:var(--danger);color:#fff}
     .btn-row{display:flex;gap:10px;margin-bottom:10px}
-    .search-row{display:flex;gap:10px;margin:10px 0}
+    .tools{display:flex;align-items:center;gap:10px}
+    .spacer{flex:1}
     .tbl{width:100%;border-collapse:collapse}
     .tbl th,.tbl td{border-bottom:1px solid var(--border);padding:10px 12px;text-align:left}
     .tbl thead th{font-size:13px;color:var(--muted);font-weight:700}
-    .muted{color:var(--muted)}
-    .tools{display:flex;align-items:center;gap:10px}
     .right .card{padding:12px}
-    .top-bar{display:flex;align-items:center;gap:12px}
-    .spacer{flex:1}
+    .muted{color:var(--muted)}
     /* Award preview */
     .award-card{border:1px solid var(--border);border-radius:12px;padding:16px;background:#fff}
     .award-title{font-size:18px;font-weight:800;letter-spacing:.02em;margin:0 0 6px}
@@ -75,7 +67,7 @@ h1 .icon{  font-size:1.3em;  margin-right:8px;
   <div class="wrap">
     <div class="top">
       <div class="top-bar">
-       <h1><span class="icon">🏫</span> 校園榮譽頒獎文件產出系統</h1>
+        <h1><span class="icon">🏫</span> 校園榮譽頒獎文件產出系統</h1>
       </div>
       <!-- 單一連線狀態徽章（可點擊重測） -->
       <div id="connBadge" class="badge" title="點擊重新檢查連線">後端連線狀態檢查中…</div>
@@ -112,9 +104,9 @@ h1 .icon{  font-size:1.3em;  margin-right:8px;
         </div>
 
         <div class="field">
-          <div class="label">獎懲種類（僅敘獎時使用；司儀稿不使用）</div>
+          <div class="label">獎懲種類（僅敘獎使用；司儀稿不使用）</div>
           <select id="cAward" class="select">
-            <option value=""></option> <!-- 預設完全空白 -->
+            <option value=""></option>
             <option>嘉獎一支</option>
             <option>嘉獎二支</option>
             <option>小功一支</option>
@@ -150,7 +142,7 @@ h1 .icon{  font-size:1.3em;  margin-right:8px;
           </thead>
           <tbody id="tb"></tbody>
         </table>
-        <div class="muted" style="padding:8px 2px"></div> <!-- 預設完全空白 -->
+        <div class="muted" style="padding:8px 2px"></div>
       </div>
     </div>
   </div>
@@ -164,12 +156,14 @@ h1 .icon{  font-size:1.3em;  margin-right:8px;
       </div>
       <div class="bd" id="modalBody"></div>
       <div class="ft">
-        <button id="openDocBtn" class="btn primary">匯出試算表</button>
+        <!-- 文字僅為預設，實際會由 app.js 依模式覆蓋 -->
+        <button id="openDocBtn" class="btn primary">開啟文件</button>
         <button id="openPdfBtn" class="btn primary">匯出 PDF</button>
       </div>
     </div>
   </div>
 
+  <!-- 設定與主程式 -->
   <script src="config.js"></script>
   <script src="app.js"></script>
 </body>
