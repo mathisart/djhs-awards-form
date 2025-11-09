@@ -66,25 +66,57 @@ function ensureHtml2pdf(){
     document.head.appendChild(s);
   });
 }
+// 取代舊的 exportEmceePdfDirect
 async function exportEmceePdfDirect(html, filename){
   await ensureHtml2pdf();
+  if (!window.html2pdf) {
+    toast('PDF 元件載入失敗（html2pdf），請重新整理後再試。');
+    return;
+  }
 
+  // 建一個隱藏容器（有些瀏覽器需在 DOM 內才會正確轉 PDF）
   const box = document.createElement("div");
-  box.style.width = "794px"; // A4 寬（96dpi 近似）
+  box.style.position = "fixed";
+  box.style.left = "-99999px";
+  box.style.top = "0";
+  box.style.width = "794px"; // A4 寬（約 96dpi）
   box.style.padding = "16px";
   box.innerHTML = html;
+  document.body.appendChild(box);
 
   const opt = {
     margin: 10,
-    filename: `${filename || "司儀稿"}.pdf`,
+    filename: `${(filename || "司儀稿")}.pdf`,
     image: { type:'jpeg', quality:0.98 },
     html2canvas: { scale:2, useCORS:true },
     jsPDF: { unit:'mm', format:'a4', orientation:'portrait' }
   };
 
-  // 直接下載（不開新視窗，因此不會被彈窗阻擋）
-  await html2pdf().from(box).set(opt).save();
+  try {
+    // 先拿到 Blob，再自己觸發下載（相較 .save() 兼容性更高）
+    const worker = html2pdf().from(box).set(opt);
+    const blob   = await worker.outputPdf('blob');
+    const url    = URL.createObjectURL(blob);
+
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${(filename || "司儀稿")}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+
+    // 某些嵌入（例如 Google Sites）會擋下載；備援改開新分頁
+    setTimeout(()=>{
+      URL.revokeObjectURL(url);
+    }, 30000);
+  } catch (e) {
+    console.error(e);
+    toast('匯出 PDF 失敗，請稍後再試。');
+  } finally {
+    box.remove();
+  }
 }
+
 
 /* ========= 後端：建立敘獎單（試算表 & PDF） ========= */
 async function createAwardDoc(rows){
