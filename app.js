@@ -68,6 +68,14 @@ function ensureHtml2pdf(){
 }
 async function exportEmceePdfNewTab(html, filename){
   await ensureHtml2pdf();
+
+  // 先開新分頁，避免被視為彈窗
+  const newWin = window.open('about:blank', '_blank');
+  if (!newWin) {
+    toast('被瀏覽器阻擋了，請允許此網頁開啟新分頁。');
+    return;
+  }
+
   const box = document.createElement("div");
   box.style.width = "794px"; // A4 寬（約 96dpi）
   box.style.padding = "16px";
@@ -81,12 +89,20 @@ async function exportEmceePdfNewTab(html, filename){
     jsPDF: { unit:'mm', format:'a4', orientation:'portrait' }
   };
 
-  // 產生 Blob → 以 blob URL 在新分頁開啟
-  const worker = html2pdf().from(box).set(opt);
-  const blob   = await worker.outputPdf('blob');
-  const url    = URL.createObjectURL(blob);
-  window.open(url, '_blank');
-  setTimeout(()=> URL.revokeObjectURL(url), 60_000);
+  try{
+    const worker = html2pdf().from(box).set(opt);
+    const blob   = await worker.outputPdf('blob');
+    const url    = URL.createObjectURL(blob);
+    // 讓已開啟的新分頁載入 PDF
+    newWin.location = url;
+
+    // 60 秒後釋放 URL
+    setTimeout(()=> URL.revokeObjectURL(url), 60000);
+  }catch(e){
+    console.error(e);
+    newWin.close();
+    toast('匯出 PDF 失敗，請稍後再試。');
+  }
 }
 
 /* ========= 後端：建立敘獎單（試算表 & PDF） =========
