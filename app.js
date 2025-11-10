@@ -339,6 +339,46 @@ function getSelectedRows(){
 }
 
 /* ========= 事件 ========= */
+// NEW: 自動查詢姓名的函式
+async function fetchStudentName() {
+  const cls = cClass.value.trim();
+  const seat = cSeat.value.trim();
+
+  // 必須班級和座號都有值才觸發查詢
+  if (!cls || !seat) {
+    return;
+  }
+  
+  // 如果姓名欄已經有值，且不是被自動填入的，就不覆蓋
+  if (cName.value && !cName.dataset.autoFilled) {
+    return;
+  }
+
+  try {
+    const form = new URLSearchParams();
+    form.set("action", "get_student_name");
+    form.set("class", cls);
+    form.set("seat", seat);
+    
+    const result = await apiPost(form);
+    
+    // 檢查回傳結果是否成功，且有 data.name
+    if (result && result.status === 'success' && result.data && result.data.name) {
+      cName.value = result.data.name;
+      cName.dataset.autoFilled = 'true'; // NEW: 做一個標記，表示是自動填入的
+    } else {
+      // 如果查不到，且之前是自動填入的，就清空
+      if (cName.dataset.autoFilled) {
+          cName.value = '';
+          delete cName.dataset.autoFilled;
+      }
+    }
+  } catch (error) {
+    console.error("查詢姓名時發生錯誤:", error);
+    // 這裡可以選擇性地不跳出提示，避免干擾使用者
+  }
+}
+
 if (btnAdd) btnAdd.onclick = async ()=>{
   if(!cClass.value || !cSeat.value || !cName.value){ toast("請先填『班級 / 座號 / 姓名』"); return; }
   const rec = {
@@ -365,11 +405,20 @@ if (btnAdd) btnAdd.onclick = async ()=>{
   }catch(e){ console.error(e); toast("已加入名單，但寫入試算表失敗。"); }
 
   cSeat.value=""; cName.value=""; cReason.value=""; cRank.value="";
+  delete cName.dataset.autoFilled; // NEW: 加入名單後清除標記
 };
 
 if (inputQ) inputQ.oninput  = render;
 if (btnRefresh) btnRefresh.onclick = render;
 if (btnClear) btnClear.onclick = ()=>{ if(!confirm("確定清除目前清單？")) return; rows=[]; render(); resetEmceeCache(); };
+
+// NEW: 幫班級和座號輸入框加上 blur 事件監聽
+if (cClass) cClass.addEventListener('blur', fetchStudentName);
+if (cSeat) cSeat.addEventListener('blur', fetchStudentName);
+// NEW: 如果使用者手動修改姓名，就移除自動填入的標記
+if (cName) cName.addEventListener('input', () => {
+    delete cName.dataset.autoFilled;
+});
 
 if (btnEmcee) btnEmcee.onclick = ()=>{
   const sel = getSelectedRows();
